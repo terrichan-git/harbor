@@ -255,23 +255,22 @@ async function savePromote() {
     load();
   } catch (err) { toast('Could not add service: ' + err.message); }
 }
-// Remove a service definition (unpromote). Confirm first — but reassure it won't kill anything.
-function confirmRemove(name) {
+// Demote a service back to a plain listening port (removes the definition; never stops the process).
+function confirmDemote(name) {
   const go = document.createElement('button');
-  go.textContent = 'Remove service';
-  go.className = 'danger';
-  go.onclick = () => removeService(name);
-  openModal('Remove service?',
-    `Remove <b>${esc(name)}</b> from your services? This only deletes the definition — it will <b>not</b> stop the running process. If it's still running it'll reappear below as a plain listening port.`,
+  go.textContent = 'Demote to listening port';
+  go.onclick = () => demoteService(name);
+  openModal('Demote service?',
+    `Demote <b>${esc(name)}</b> back to a plain listening port? This removes it from Known services — it is <b>not</b> stopped. If it's still running it'll reappear below under Listening ports.`,
     [closeBtn('Cancel'), go]);
 }
-async function removeService(name) {
+async function demoteService(name) {
   try {
     await api(`/api/services/${encodeURIComponent(name)}/remove`, { method: 'POST', body: '{}' });
-    toast(`Removed “${name}”`);
+    toast(`Demoted “${name}” to a listening port`);
     closeModal();
     load();
-  } catch (err) { toast('Remove failed: ' + err.message); }
+  } catch (err) { toast('Demote failed: ' + err.message); }
 }
 async function showLogs(name) {
   try {
@@ -335,7 +334,7 @@ function serviceRowHtml(s) {
   const editBtn = s.annoKey
     ? `<button class="ghost icon" data-act="edit" data-key="${esc(s.annoKey)}" data-label="${esc(s.name)}" data-cname="${esc(s.customName || '')}" data-desc="${esc(s.description || '')}" title="Rename / describe">✎</button>`
     : '';
-  const removeBtn = `<button class="ghost icon" data-act="remove" data-name="${esc(s.name)}" title="Remove this service (unpromote — does not stop the process)">🗑</button>`;
+  const demoteBtn = `<button class="ghost" data-act="demote" data-name="${esc(s.name)}" title="Demote to a plain listening port — removes the service definition; does not stop the process">Demote</button>`;
   // autostart toggle — persisted to services.json; takes effect at Harbor's next launch.
   const autostart = `<button class="switch ${s.autostart ? 'on' : ''}" role="switch" aria-checked="${s.autostart}"
       data-act="autostart" data-name="${esc(s.name)}" data-enabled="${s.autostart ? '1' : '0'}"
@@ -354,7 +353,7 @@ function serviceRowHtml(s) {
       <div class="sub">${esc(s.command)}${s.pid ? ` · pid ${s.pid}` : ''} ${links}</div>
       ${desc}
     </div>
-    <div class="actions">${editBtn}${autostart}${runBtns}${removeBtn}</div>
+    <div class="actions">${editBtn}${autostart}${runBtns}${demoteBtn}</div>
   </div>`;
 }
 
@@ -401,8 +400,8 @@ function categoryMeta(l) {
 
 // Category groups, in display order. A listener matched to a known service groups under 'known';
 // everything else groups by its classifier category.
+// Known services live in their own section above, so the ports list groups only unmanaged things.
 const PORT_GROUPS = [
-  { key: 'known',   label: 'Known services',   tone: 'ok' },
   { key: 'project', label: 'Your projects',    tone: 'proj' },
   { key: 'app',     label: 'Installed apps',   tone: 'app' },
   { key: 'tool',    label: 'Tools & services', tone: 'tool' },
@@ -514,7 +513,9 @@ async function load() {
     // Harbor itself is shown only in its own top section — keep it out of the groups so it
     // can't be treated as a normal (circular) known service.
     renderServices(state.services.filter((s) => !s.isSelf));
-    renderPorts(state.listeners.filter((l) => !l.isSelf));
+    // Listening ports = UNMANAGED listeners only. Known services already have their own section
+    // above, so exclude them here (and Harbor itself) to avoid showing the same thing twice.
+    renderPorts(state.listeners.filter((l) => !l.isSelf && l.kind !== 'known'));
     $('#lastRefresh').textContent = 'updated ' + new Date().toLocaleTimeString();
   } catch (err) {
     if (err.status === 401) {
@@ -557,7 +558,7 @@ document.addEventListener('click', (e) => {
   else if (act === 'autostart') toggleAutostart(name, btn.dataset.enabled === '1');
   else if (act === 'edit') openEditModal(btn.dataset);
   else if (act === 'promote') openPromoteModal(btn.dataset);
-  else if (act === 'remove') confirmRemove(name);
+  else if (act === 'demote') confirmDemote(name);
 });
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') closeModal();

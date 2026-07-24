@@ -169,8 +169,8 @@ h2.section { font-size: var(--t-lg); margin: var(--s-6) 0 var(--s-3); letter-spa
 .card.self .name .anchor, .card.self .kind.ok { }
 .card.self .kind.ok { color: #fff; background: var(--accent); }
 
-/* remove (trash) button turns danger on hover */
-button.icon[data-act="remove"]:hover { color: var(--danger); background: var(--danger-soft); }
+/* demote button turns danger-tinted on hover */
+button[data-act="demote"]:hover { color: var(--danger); border-color: var(--danger); }
 
 /* collapsible category groups — each is its own .card */
 .group-head {
