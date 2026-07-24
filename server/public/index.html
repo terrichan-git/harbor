@@ -4,8 +4,15 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Harbor — port manager</title>
+  <!-- Modern browsers use the SVG; iOS Safari IGNORES it, so also ship PNGs (tab favicon + home-screen icon). -->
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
   <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <meta name="theme-color" content="#0e8f8f" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="Harbor" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <link rel="stylesheet" href="/styles.css" />
   <!-- The server injects the token here for loopback requests; blank for remote (supply ?token=). -->
   <script>window.HARBOR_TOKEN = "__HARBOR_TOKEN__";</script>
