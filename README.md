@@ -4,7 +4,13 @@ Harbor lists everything listening on a TCP port, lets you start/stop a saved set
 "known services," kill rogue processes, and hands you copyable Tailscale links so you can
 open any dev server from your phone. One Node process, no database, no cloud.
 
-![colors: green = known service running · gray = known service stopped · yellow = unknown process](server/public/favicon.svg)
+> **macOS only.** Harbor relies on macOS-specific tools (`lsof`, POSIX process groups, launchd,
+> Touch ID). Windows isn't supported.
+
+<p align="center">
+  <img src="docs/mockup.png" alt="Harbor UI — known services grouped by running/stopped, listening ports grouped by type" width="840">
+  <br><em>Illustrative UI with sample data.</em>
+</p>
 
 ## What it does
 
