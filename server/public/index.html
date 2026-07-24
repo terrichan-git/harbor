@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Harbor — port manager</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  <link rel="stylesheet" href="/styles.css" />
+  <!-- The server injects the token here for loopback requests; blank for remote (supply ?token=). -->
+  <script>window.HARBOR_TOKEN = "__HARBOR_TOKEN__";</script>
+</head>
+<body>
+  <div class="wrap">
+    <header class="app">
+      <div class="brand"><span class="anchor">⚓</span> Harbor</div>
+      <span class="muted" id="selfInfo"></span>
+      <div class="spacer"></div>
+      <span class="muted" id="lastRefresh"></span>
+      <button class="ghost icon" id="themeBtn" title="Toggle theme" aria-label="Toggle theme">◐</button>
+      <button class="ghost" id="touchIdBtn" hidden>Set up Touch ID</button>
+      <button class="primary" id="refreshBtn">Refresh</button>
+    </header>
+
+    <div id="banners"></div>
+
+    <h2 class="section">Known services</h2>
+    <div class="card" id="servicesCard"><div class="empty">Loading…</div></div>
+
+    <h2 class="section">Listening ports</h2>
+    <div class="card" id="portsCard"><div class="empty">Loading…</div></div>
+
+    <p class="muted" style="margin-top:var(--s-6)">
+      Green = known service running · Gray = known service stopped · Yellow = unknown process on a port.
+      Protected processes show a lock and can't be killed.
+    </p>
+  </div>
+
+  <div id="toast"></div>
+
+  <div class="modal-back" id="modalBack">
+    <div class="modal">
+      <h3 id="modalTitle"></h3>
+      <div class="body" id="modalBody"></div>
+      <div class="foot" id="modalFoot"></div>
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

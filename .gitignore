@@ -1,0 +1,17 @@
+# Dependencies
+node_modules/
+*/node_modules/
+
+# App state — created at runtime, never source. NOT regenerable, back up separately.
+# Holds the auth token, PID files, per-service logs, and WebAuthn credentials.
+data/
+
+# The launchd log the LaunchAgent writes to (path also lives under data/, kept here for safety)
+*.out.log
+
+# macOS cruft
+.DS_Store
+
+# Editor
+.vscode/
+*.swp

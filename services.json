@@ -1,0 +1,26 @@
+{
+  "$comment": "Harbor known-services config. Hand-edited; Harbor reads it (Reload button in the UI re-reads without a restart). Each service is matched to a running process BY PORT. 'port' may be a single number or an array of numbers for multi-port services. 'autostart' (default false) starts the service when Harbor launches at login. 'cwd' and 'command' are used to spawn it; the command runs through your shell in that directory.",
+  "services": [
+    {
+      "name": "web",
+      "cwd": "~/Claude/Harbor",
+      "command": "python3 -m http.server 3000",
+      "port": 3000,
+      "autostart": false
+    },
+    {
+      "name": "api",
+      "cwd": "~/projects/my-api",
+      "command": "npm run dev",
+      "port": 8080,
+      "autostart": false
+    },
+    {
+      "name": "docs",
+      "cwd": "~/projects/docs-site",
+      "command": "npm run dev",
+      "port": [4000, 4001],
+      "autostart": false
+    }
+  ]
+}

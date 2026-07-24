@@ -1,0 +1,20 @@
+{
+  "name": "harbor",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Harbor — a local port manager for macOS. Lists TCP listeners, starts/stops known services, hands you copyable Tailscale links.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node server/server.js",
+    "test": "node --test",
+    "install-login": "node scripts/install-login.js",
+    "uninstall-login": "node scripts/uninstall-login.js"
+  },
+  "dependencies": {
+    "@simplewebauthn/server": "^13.1.1",
+    "express": "^4.21.2"
+  }
+}
