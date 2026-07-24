@@ -299,6 +299,10 @@ button.icon { padding: 6px 8px; }
 
 .empty { padding: var(--s-6); text-align: center; color: var(--text-3); font-size: var(--t-sm); }
 
+/* QR code — always on white so it scans in dark mode too */
+.qr { display: inline-block; background: #fff; padding: 12px; border-radius: var(--r-md); }
+.qr svg { width: 220px; height: 220px; display: block; }
+
 /* ---- responsive: phone gets a simpler stacked shape ---- */
 @media (max-width: 640px) {
   .wrap { padding: var(--s-4) var(--s-3) var(--s-8); }

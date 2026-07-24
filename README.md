@@ -82,9 +82,11 @@ With Tailscale up, Harbor prints a tokenized URL on startup:
 http://<your-machine>.<tailnet>.ts.net:7071/?token=<token>
 ```
 
-Open that once on your phone (on the same tailnet); it stores the token and drops it from the
-address bar. From then on you can Start/Stop/Kill remotely. The token lives in `data/token`
-(git-ignored, `chmod 600`) and is required for every state-changing request.
+Easiest: on your Mac open http://localhost:7071 and click **📱 Connect phone** — scan the QR with
+your phone's camera. It opens Harbor and stores the token in `localStorage`, so it stays connected
+across restarts (connect once). The QR endpoint is loopback-only, so the token is never served over
+the tailnet. Alternatively, open the printed `…/?token=…` URL on the phone directly. The token lives
+in `data/token` (git-ignored, `chmod 600`) and is required for every state-changing request.
 
 ## Touch ID (optional, this Mac only)
 

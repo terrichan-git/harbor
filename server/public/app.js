@@ -8,11 +8,12 @@ const url = new URL(location.href);
 let TOKEN = window.HARBOR_TOKEN || '';
 if (url.searchParams.get('token')) {
   TOKEN = url.searchParams.get('token');
-  sessionStorage.setItem('harbor_token', TOKEN);
+  // localStorage (not session): connect the phone once and it stays connected across app restarts.
+  localStorage.setItem('harbor_token', TOKEN);
   url.searchParams.delete('token'); // don't leave the token in the address bar / history
   history.replaceState(null, '', url.pathname);
 }
-if (!TOKEN) TOKEN = sessionStorage.getItem('harbor_token') || '';
+if (!TOKEN) TOKEN = localStorage.getItem('harbor_token') || sessionStorage.getItem('harbor_token') || '';
 let UNLOCK = sessionStorage.getItem('harbor_unlock') || '';
 
 // ---- tiny helpers -------------------------------------------------------------------------
@@ -272,6 +273,25 @@ async function demoteService(name) {
     load();
   } catch (err) { toast('Demote failed: ' + err.message); }
 }
+// Connect a phone: show a QR of the tokenized tailnet URL (fetched loopback-only). Scan once → the
+// phone opens Harbor and stores the token in localStorage, staying connected.
+async function openPairModal() {
+  openModal('Connect a phone', '<p class="muted">Generating…</p>', [closeBtn()]);
+  try {
+    const r = await api('/api/pair');
+    $('#modalBody').innerHTML = `
+      <div style="text-align:center">
+        <div class="qr">${r.svg}</div>
+        <p class="muted" style="margin-top:var(--s-3)">Scan with your phone's camera — it must be on the same Tailscale tailnet. Harbor opens and stays connected across restarts.</p>
+        <div class="field" style="margin-top:var(--s-3); text-align:left">
+          <label>Or type this URL on your phone</label>
+          <input type="text" readonly value="${esc(r.url)}" onclick="this.select()">
+        </div>
+      </div>`;
+  } catch (err) {
+    $('#modalBody').innerHTML = `<div class="banner warn">${esc(err.message)}</div>`;
+  }
+}
 async function showLogs(name) {
   try {
     const r = await api(`/api/services/${encodeURIComponent(name)}/logs`);
@@ -511,6 +531,8 @@ async function load() {
     TAILNET = state.tailscale.host;
     $('#selfInfo').textContent = `this is Harbor · pid ${state.self.pid} · :${state.self.port}`;
     $('#touchIdBtn').hidden = state.touchId.enrolled || location.hostname !== 'localhost';
+    // Pairing (QR with the token) is a laptop-only affordance — never expose it on the phone.
+    $('#pairBtn').hidden = !(location.hostname === 'localhost' || location.hostname === '127.0.0.1');
     renderBanners(state);
     renderSelf(state);
     // Harbor itself is shown only in its own top section — keep it out of the groups so it
@@ -571,6 +593,7 @@ document.addEventListener('keydown', (e) => {
 
 $('#refreshBtn').onclick = load;
 $('#touchIdBtn').onclick = doTouchIdEnroll;
+$('#pairBtn').onclick = openPairModal;
 
 // theme toggle (persisted); default follows the OS
 const savedTheme = localStorage.getItem('harbor_theme');

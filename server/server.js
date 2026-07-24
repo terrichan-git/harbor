@@ -5,6 +5,7 @@
 const fs = require('fs');
 const path = require('path');
 const express = require('express');
+const QRCode = require('qrcode');
 
 const { PATHS } = require('./lib/paths');
 const ports = require('./lib/ports');
@@ -158,6 +159,22 @@ app.get('/api/state', auth.requireForRead(), async (req, res) => {
       tailscale: { host },
       touchId: { enrolled: webauthn.isEnrolled() },
     });
+  } catch (err) {
+    res.status(500).json({ error: String(err.message || err) });
+  }
+});
+
+// "Connect a phone": returns the tokenized tailnet URL + a QR of it. LOOPBACK ONLY — this response
+// embeds the secret token, so it must never be reachable from the tailnet. The laptop UI (already
+// trusted on loopback) shows the QR; you scan it once and the phone stores the token.
+app.get('/api/pair', async (req, res) => {
+  if (!auth.isLoopback(req)) return res.status(403).json({ error: 'pairing is available on this Mac only' });
+  const host = await tailscale.getHost();
+  if (!host) return res.status(409).json({ error: 'Tailscale not detected — start it and try again' });
+  const url = `http://${host}:${PORT}/?token=${auth.getOrCreateToken()}`;
+  try {
+    const svg = await QRCode.toString(url, { type: 'svg', margin: 1, width: 240 });
+    res.json({ url, svg });
   } catch (err) {
     res.status(500).json({ error: String(err.message || err) });
   }
