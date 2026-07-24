@@ -15,13 +15,17 @@ open any dev server from your phone. One Node process, no database, no cloud.
   processes **by port**.
 - **Readable names**: each listener is labelled by its project (from its working directory /
   `package.json` name), so five `node` servers read as `jumpr-local`, `my-api`, … not all "node".
+- **Typed by origin**: every listening port is classified — **your project**, an **installed app**
+  (with its name, e.g. Raycast/Grain), a **macOS system** process, a **CLI tool**, or an
+  **unrecognized** process — so "what is this on this port?" is answered at a glance.
 - **Survive & re-adopt**: services Harbor starts keep running if Harbor restarts/crashes, and get
   re-attached on the next launch.
 - **Tailscale links**: per-port `http://<machine>.<tailnet>.ts.net:<port>` you can copy in one click,
   and Harbor's own UI is reachable from your phone (token-protected).
 - **Touch ID** (optional): gate destructive actions on this Mac behind Touch ID.
-- Colour code: **green** = known service running · **gray** = known service stopped ·
-  **yellow** = unknown/rogue process. Protected processes show a 🔒 and can't be killed.
+- Colour code — services: **green** = running · **gray** = stopped. Ports by type:
+  **green** = known service · **indigo** = your project · **blue** = installed app ·
+  **gray** = system/tool · **yellow** = unrecognized. Protected processes show a 🔒 and can't be killed.
 
 ## Requirements
 

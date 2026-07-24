@@ -15,7 +15,7 @@ rediscovering something. Add to it the moment something surprises you.
   - `safety.js` — the pure "is this killable?" rule.
   - `tailscale.js`, `auth.js`, `webauthn.js` — tailnet host, token boundary, Touch ID.
 - **Deterministic core is unit-tested** (`npm test`): lsof parsing, port matching, config
-  validation, re-adoption, safety classification, auth origin/loopback logic. 26 tests.
+  validation, re-adoption, safety classification, auth origin/loopback logic. 32 tests.
 
 ## The three expensive-to-reverse decisions (as built)
 
@@ -89,6 +89,17 @@ rediscovering something. Add to it the moment something surprises you.
   relaunches (a re-adopted / already-up service is skipped). Consequence: if you manually Stop an
   autostart service and Harbor later restarts (crash + KeepAlive), it comes back. Intended for a
   "always want this up" flag; note it if it surprises you.
+- **Port categories are rule-based on paths, derived from the real corpus.** `classify.js` labels
+  each listener `project | app | system | tool | unknown` from the executable path + cwd — NOT a
+  model (the boundary is a genuine path pattern). Rules, in order: system paths → `system`; a
+  `.app/` bundle in exe or cwd (or cwd under `~/Library`) → `app` (+ app name from the outermost
+  `.app`); cwd under `$HOME` (owned source) → `project`; interpreter or `/usr/local`|`/opt/homebrew`
+  binary → `tool`; else `unknown`. The rules were validated against the actual processes listening
+  on the build machine (`test/classify.test.js` uses those exact shapes). It also fixes ugly labels:
+  an app's label becomes its app name (Dia, "Aside Daemon") instead of a cwd basename ("AgentServer",
+  "MacOS"). NB: `classify.js` has its own copy of the system-path list — deliberately NOT shared with
+  `safety.js`, because the security "can I kill it?" rule must not depend on display logic. Keep the
+  two lists in sync if you extend either.
 - **Listener names are enriched from the working directory.** `ports.listListeners` runs a second
   batched `lsof -a -d cwd` to get each pid's cwd, then `projectLabel` derives a friendly name:
   `package.json` "name" (scope stripped) → else cwd basename → else the generic process name.
@@ -104,7 +115,7 @@ placeholder the server fills in for loopback requests only. If you rename that p
 
 ## Verified (measurements, not expectations)
 
-- `npm test`: 26/26 pass.
+- `npm test`: 32/32 pass.
 - Auth: mutation w/o token → 401; non-loopback read w/o token → 401; with token → 200;
   cross-site Origin → 403.
 - Start/Stop/Kill and force-kill exercised live (API + real UI clicks); ports freed, PID files

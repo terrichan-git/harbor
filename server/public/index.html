@@ -31,8 +31,13 @@
     <div class="card" id="portsCard"><div class="empty">Loading…</div></div>
 
     <p class="muted" style="margin-top:var(--s-6)">
-      Green = known service running · Gray = known service stopped · Yellow = unknown process on a port.
-      Protected processes show a lock and can't be killed.
+      <b>Services:</b> green = running · gray = stopped.
+      <b>Ports by type:</b> <span style="color:var(--ok)">■</span> known service ·
+      <span style="color:var(--proj)">■</span> your project ·
+      <span style="color:var(--app)">■</span> installed app ·
+      <span style="color:var(--idle)">■</span> system / tool ·
+      <span style="color:var(--warn)">■</span> unrecognized.
+      Protected processes show a 🔒 and can't be killed.
     </p>
   </div>
 

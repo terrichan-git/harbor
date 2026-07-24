@@ -244,16 +244,29 @@ function renderServices(services) {
   }).join('');
 }
 
+// Map a listener to a display tone + category badge. Known services stay green; everything else is
+// labelled by what it IS — your project, an installed app, a macOS service, a CLI tool, or a
+// genuinely unrecognised process.
+function categoryMeta(l) {
+  if (l.kind === 'known') return { tone: 'ok', badge: esc(l.serviceName) };
+  switch (l.category) {
+    case 'project': return { tone: 'proj', badge: 'your project' };
+    case 'app':     return { tone: 'app',  badge: l.appName ? `app · ${esc(l.appName)}` : 'app' };
+    case 'system':  return { tone: 'sys',  badge: 'system' };
+    case 'tool':    return { tone: 'tool', badge: 'tool' };
+    default:        return { tone: 'warn', badge: 'unrecognized' };
+  }
+}
+
 function renderPorts(listeners) {
   const card = $('#portsCard');
   if (!listeners.length) { card.innerHTML = `<div class="empty">Nothing is listening on a TCP port.</div>`; return; }
   card.innerHTML = listeners.map((l) => {
-    const kind = l.kind === 'known' ? 'ok' : 'warn';
+    const meta = categoryMeta(l);
+    const kind = meta.tone;
     const ports = l.ports.map((p) => `<span class="port-chip">:${p}</span>`).join(' ');
     const links = l.ports.map((p) => tailLink(p)).filter(Boolean).map(copyChip).join(' ');
-    const badge = l.kind === 'known'
-      ? `<span class="kind ok">${esc(l.serviceName)}</span>`
-      : `<span class="kind warn">rogue</span>`;
+    const badge = `<span class="kind ${meta.tone}">${meta.badge}</span>`;
     // Primary label is the enriched project name; show the generic process name as a small tag
     // when it differs (e.g. "Jumpr" with a "node" tag), so identity and runtime are both visible.
     const procTag = l.label && l.name && l.label !== l.name ? `<span class="proc-tag">${esc(l.name)}</span>` : '';

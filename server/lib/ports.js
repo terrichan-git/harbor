@@ -14,6 +14,7 @@ const { execFile } = require('child_process');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { classify } = require('./classify');
 
 const LSOF = '/usr/sbin/lsof';
 const PS = '/bin/ps';
@@ -183,11 +184,14 @@ async function listListeners() {
   for (const rec of merged) {
     const cwd = cwdByPid.get(rec.pid) || null;
     const project = projectLabel(cwd, cwd ? readPkgName(cwd) : null, home);
+    const { category, appName } = classify({ command: rec.command, cwd }, { homeDir: home });
     rec.cwd = cwd;
     rec.project = project;
-    // label is what the UI shows as the primary identifier; project when we found one, else the
-    // generic process name ("node"). name is kept alongside so the UI can show both.
-    rec.label = project || rec.name;
+    rec.category = category; // 'project' | 'app' | 'system' | 'tool' | 'unknown'
+    rec.appName = appName;
+    // Primary display label: the app's real name for installed apps (so a helper daemon whose cwd
+    // basename is "MacOS" reads as its app), else the project name, else the generic process name.
+    rec.label = (category === 'app' && appName) || project || rec.name;
   }
   return merged;
 }

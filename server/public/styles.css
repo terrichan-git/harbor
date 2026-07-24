@@ -24,9 +24,11 @@
 
   /* status */
   --ok:    #1f9d55;  --ok-soft:  #dcf3e6;   /* known service running (green) */
-  --idle:  #647082;  --idle-soft:#e9edf1;   /* known service stopped (gray)  */
-  --warn:  #b7791f;  --warn-soft:#faf0d7;   /* unknown / rogue (yellow)      */
+  --idle:  #647082;  --idle-soft:#e9edf1;   /* known service stopped / system (gray) */
+  --warn:  #b7791f;  --warn-soft:#faf0d7;   /* unrecognized (yellow)         */
   --danger:#c0392b;  --danger-soft:#fbe4e1; /* force-kill / errors           */
+  --proj:  #5b5bd6;  --proj-soft:#e7e7fb;   /* your project (indigo)         */
+  --app:   #2f74d0;  --app-soft: #dcebfb;   /* installed app (blue)          */
 
   /* semantic surfaces (light) */
   --bg:        var(--n-50);
@@ -68,6 +70,7 @@
     --text-3:    #7f8b99;
     --accent-soft:#0c3a3a;
     --ok-soft:#123726; --idle-soft:#232a35; --warn-soft:#3a2f14; --danger-soft:#3a1c18;
+    --proj-soft:#232152; --app-soft:#122a49;
     --shadow-1: 0 1px 2px rgba(0,0,0,.4);
     --shadow-2: 0 8px 24px rgba(0,0,0,.5);
   }
@@ -128,6 +131,10 @@ h2.section { font-size: var(--t-lg); margin: var(--s-6) 0 var(--s-3); letter-spa
 .dot.ok    { background: var(--ok); }
 .dot.idle  { background: var(--idle); }
 .dot.warn  { background: var(--warn); }
+.dot.proj  { background: var(--proj); }
+.dot.app   { background: var(--app); }
+.dot.sys   { background: var(--idle); }
+.dot.tool  { background: var(--idle); }
 .kind {
   font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em;
   padding: 2px 8px; border-radius: var(--r-full);
@@ -135,11 +142,19 @@ h2.section { font-size: var(--t-lg); margin: var(--s-6) 0 var(--s-3); letter-spa
 .kind.ok   { color: var(--ok);   background: var(--ok-soft); }
 .kind.idle { color: var(--idle); background: var(--idle-soft); }
 .kind.warn { color: var(--warn); background: var(--warn-soft); }
+.kind.proj { color: var(--proj); background: var(--proj-soft); }
+.kind.app  { color: var(--app);  background: var(--app-soft); }
+.kind.sys  { color: var(--idle); background: var(--idle-soft); }
+.kind.tool { color: var(--idle); background: var(--idle-soft); }
 
 /* left accent stripe by kind */
 .row.ok   { box-shadow: inset 3px 0 0 var(--ok); }
 .row.idle { box-shadow: inset 3px 0 0 var(--idle); }
 .row.warn { box-shadow: inset 3px 0 0 var(--warn); }
+.row.proj { box-shadow: inset 3px 0 0 var(--proj); }
+.row.app  { box-shadow: inset 3px 0 0 var(--app); }
+.row.sys  { box-shadow: inset 3px 0 0 var(--idle); }
+.row.tool { box-shadow: inset 3px 0 0 var(--idle); }
 
 .port-chip {
   font-family: var(--mono); font-size: var(--t-xs); font-weight: 600;
