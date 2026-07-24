@@ -283,37 +283,67 @@ function copyChip(link) {
   return `<span class="copy" data-link="${esc(link)}" role="button" tabindex="0" title="Copy ${esc(link)}">🔗 <span class="label">${esc(link)}</span></span>`;
 }
 
+function serviceRowHtml(s) {
+  // status: running (green) | down = was up, now gone, needs restart (amber) | stopped (gray)
+  const status = s.status || (s.running ? 'running' : 'stopped');
+  const kind = status === 'running' ? 'ok' : status === 'down' ? 'warn' : 'idle';
+  const label = status === 'running' ? 'running' : status === 'down' ? 'needs restart' : 'stopped';
+  const ports = s.ports.map((p) => `<span class="port-chip">:${p}</span>`).join(' ');
+  const links = s.running ? s.ports.map((p) => tailLink(p)).filter(Boolean).map(copyChip).join(' ') : '';
+  // A custom name overrides the display heading; the service's real id shows as a small tag.
+  const display = s.customName || s.name;
+  const idTag = s.customName ? `<span class="proc-tag">${esc(s.name)}</span>` : '';
+  const desc = s.description ? `<div class="desc">${esc(s.description)}</div>` : '';
+  const editBtn = s.annoKey
+    ? `<button class="ghost icon" data-act="edit" data-key="${esc(s.annoKey)}" data-label="${esc(s.name)}" data-cname="${esc(s.customName || '')}" data-desc="${esc(s.description || '')}" title="Rename / describe">✎</button>`
+    : '';
+  // autostart toggle — persisted to services.json; takes effect at Harbor's next launch.
+  const autostart = `<button class="switch ${s.autostart ? 'on' : ''}" role="switch" aria-checked="${s.autostart}"
+      data-act="autostart" data-name="${esc(s.name)}" data-enabled="${s.autostart ? '1' : '0'}"
+      title="Start &quot;${esc(s.name)}&quot; automatically when Harbor launches at login">
+      <span class="knob"></span><span class="switch-label">autostart</span></button>`;
+  const startLabel = status === 'down' ? 'Restart' : 'Start';
+  const runBtns = s.running
+    ? `${s.managed ? `<button class="danger" data-act="stop" data-name="${esc(s.name)}">Stop</button>` : `<span class="lock" title="Running, but not started by Harbor">running externally</span>`}
+       <button class="ghost" data-act="logs" data-name="${esc(s.name)}">Logs</button>`
+    : `<button class="primary" data-act="start" data-name="${esc(s.name)}">${startLabel}</button>
+       <button class="ghost" data-act="logs" data-name="${esc(s.name)}">Logs</button>`;
+  return `<div class="row ${kind}">
+    <span class="dot ${kind}"></span>
+    <div class="main">
+      <div class="name">${esc(display)} ${idTag} <span class="kind ${kind}">${label}</span> ${ports}</div>
+      <div class="sub">${esc(s.command)}${s.pid ? ` · pid ${s.pid}` : ''} ${links}</div>
+      ${desc}
+    </div>
+    <div class="actions">${editBtn}${autostart}${runBtns}</div>
+  </div>`;
+}
+
 function renderServices(services) {
   const card = $('#servicesCard');
-  if (!services.length) { card.innerHTML = `<div class="empty">No services defined. Add some to <code>services.json</code> and hit Refresh.</div>`; return; }
-  card.innerHTML = services.map((s) => {
-    // status: running (green) | down = was up, now gone, needs restart (amber) | stopped (gray)
-    const status = s.status || (s.running ? 'running' : 'stopped');
-    const kind = status === 'running' ? 'ok' : status === 'down' ? 'warn' : 'idle';
-    const label = status === 'running' ? 'running' : status === 'down' ? 'needs restart' : 'stopped';
-    const ports = s.ports.map((p) => `<span class="port-chip">:${p}</span>`).join(' ');
-    const links = s.running ? s.ports.map((p) => tailLink(p)).filter(Boolean).map(copyChip).join(' ') : '';
-    // autostart toggle — persisted to services.json; takes effect at Harbor's next launch.
-    const autostart = `<button class="switch ${s.autostart ? 'on' : ''}" role="switch" aria-checked="${s.autostart}"
-        data-act="autostart" data-name="${esc(s.name)}" data-enabled="${s.autostart ? '1' : '0'}"
-        title="Start &quot;${esc(s.name)}&quot; automatically when Harbor launches at login">
-        <span class="knob"></span><span class="switch-label">autostart</span></button>`;
-    const startLabel = status === 'down' ? 'Restart' : 'Start';
-    const runBtns = s.running
-      ? `${s.managed ? `<button class="danger" data-act="stop" data-name="${esc(s.name)}">Stop</button>` : `<span class="lock" title="Running, but not started by Harbor">running externally</span>`}
-         <button class="ghost" data-act="logs" data-name="${esc(s.name)}">Logs</button>`
-      : `<button class="primary" data-act="start" data-name="${esc(s.name)}">${startLabel}</button>
-         <button class="ghost" data-act="logs" data-name="${esc(s.name)}">Logs</button>`;
-    const actions = autostart + runBtns;
-    return `<div class="row ${kind}">
-      <span class="dot ${kind}"></span>
-      <div class="main">
-        <div class="name">${esc(s.name)} <span class="kind ${kind}">${label}</span> ${ports}</div>
-        <div class="sub">${esc(s.command)}${s.pid ? ` · pid ${s.pid}` : ''} ${links}</div>
-      </div>
-      <div class="actions">${actions}</div>
+  if (!services.length) { card.innerHTML = `<div class="empty">No services defined. Add some to <code>services.json</code>, or promote a project below with <b>+ Service</b>.</div>`; return; }
+  const buckets = new Map();
+  for (const s of services) {
+    const k = serviceGroupKey(s);
+    if (!buckets.has(k)) buckets.set(k, []);
+    buckets.get(k).push(s);
+  }
+  let html = '';
+  for (const g of SERVICE_GROUPS) {
+    const items = buckets.get(g.key);
+    if (!items || !items.length) continue;
+    const isCollapsed = collapsedServices.has(g.key);
+    html += `<div class="card group ${isCollapsed ? 'collapsed' : ''}" data-group="${g.key}" data-scope="services">
+      <button class="group-head" data-toggle="${g.key}" data-scope="services" aria-expanded="${!isCollapsed}">
+        <span class="chevron">▾</span>
+        <span class="dot ${g.tone}"></span>
+        <span class="group-title">${g.label}</span>
+        <span class="group-count">${items.length}</span>
+      </button>
+      <div class="group-body"${isCollapsed ? ' hidden' : ''}>${items.map(serviceRowHtml).join('')}</div>
     </div>`;
-  }).join('');
+  }
+  card.innerHTML = html;
 }
 
 // Map a listener to a display tone + category badge. Known services stay green; everything else is
@@ -342,9 +372,23 @@ const PORT_GROUPS = [
 ];
 const groupKeyFor = (l) => (l.kind === 'known' ? 'known' : (l.category || 'unknown'));
 
-// Collapsed groups persist across the 4s auto-refresh (which rebuilds this DOM) — otherwise a
-// collapsed section would spring back open every few seconds.
-const collapsed = new Set(JSON.parse(localStorage.getItem('harbor_collapsed') || '[]'));
+// Service groups: running vs stopped (a "needs restart" service lives under Stopped but keeps its
+// amber badge).
+const SERVICE_GROUPS = [
+  { key: 'running', label: 'Running', tone: 'ok' },
+  { key: 'stopped', label: 'Stopped', tone: 'idle' },
+];
+const serviceGroupKey = (s) => (s.status === 'running' ? 'running' : 'stopped');
+
+// Collapsed groups persist across the 4s auto-refresh (which rebuilds the DOM). Ports and services
+// keep independent collapse state.
+const collapsedPorts = new Set(JSON.parse(localStorage.getItem('harbor_collapsed') || '[]'));
+const collapsedServices = new Set(JSON.parse(localStorage.getItem('harbor_svc_collapsed') || '[]'));
+function collapseStore(scope) {
+  return scope === 'services'
+    ? { set: collapsedServices, key: 'harbor_svc_collapsed' }
+    : { set: collapsedPorts, key: 'harbor_collapsed' };
+}
 
 function rowHtml(l) {
   const meta = categoryMeta(l);
@@ -391,10 +435,10 @@ function renderPorts(listeners) {
   for (const g of PORT_GROUPS) {
     const items = buckets.get(g.key);
     if (!items || !items.length) continue;
-    const isCollapsed = collapsed.has(g.key);
+    const isCollapsed = collapsedPorts.has(g.key);
     // Each category is its own collapsible card.
-    html += `<div class="card group ${isCollapsed ? 'collapsed' : ''}" data-group="${g.key}">
-      <button class="group-head" data-toggle="${g.key}" aria-expanded="${!isCollapsed}">
+    html += `<div class="card group ${isCollapsed ? 'collapsed' : ''}" data-group="${g.key}" data-scope="ports">
+      <button class="group-head" data-toggle="${g.key}" data-scope="ports" aria-expanded="${!isCollapsed}">
         <span class="chevron">▾</span>
         <span class="dot ${g.tone}"></span>
         <span class="group-title">${g.label}</span>
@@ -451,10 +495,11 @@ document.addEventListener('click', (e) => {
   const head = e.target.closest('button[data-toggle]');
   if (head) {
     const k = head.dataset.toggle;
-    if (collapsed.has(k)) collapsed.delete(k); else collapsed.add(k);
-    localStorage.setItem('harbor_collapsed', JSON.stringify([...collapsed]));
+    const { set, key } = collapseStore(head.dataset.scope);
+    if (set.has(k)) set.delete(k); else set.add(k);
+    localStorage.setItem(key, JSON.stringify([...set]));
     const grp = head.closest('.group');
-    const nowCollapsed = collapsed.has(k);
+    const nowCollapsed = set.has(k);
     grp.classList.toggle('collapsed', nowCollapsed);
     grp.querySelector('.group-body').hidden = nowCollapsed;
     head.setAttribute('aria-expanded', String(!nowCollapsed));

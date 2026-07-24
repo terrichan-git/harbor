@@ -130,6 +130,10 @@ app.get('/api/state', auth.requireForRead(), async (req, res) => {
         // status: running | down (was up / Harbor-started but now not listening) | stopped.
         const hasPidfile = !!registry.read(s.name);
         const status = s.running ? 'running' : ((hasPidfile || everSeenRunning.has(s.name)) ? 'down' : 'stopped');
+        // Same annotation system as listeners (keyed by cwd/port), so a service and its port row
+        // share one custom name + description.
+        const svcAnnoKey = annotations.keyFor({ cwd: s.cwd, ports: s.ports });
+        const svcAnno = svcAnnoKey ? annoStore[svcAnnoKey] : null;
         return {
           name: s.name,
           ports: s.ports,
@@ -140,6 +144,9 @@ app.get('/api/state', auth.requireForRead(), async (req, res) => {
           status,
           pid: s.listener ? s.listener.pid : null,
           managed: s.listener ? managedPids.has(s.listener.pid) : false,
+          annoKey: svcAnnoKey,
+          customName: (svcAnno && svcAnno.name) || null,
+          description: (svcAnno && svcAnno.description) || null,
         };
       }),
       configErrors: errors,
