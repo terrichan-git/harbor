@@ -59,21 +59,21 @@ test('mergeListeners tolerates a pid that ps did not return (exited between call
 });
 
 test('parseLsofCwd maps pid to working directory', () => {
-  const out = ['p71201', 'n/Users/terri/Projects/Jumpr', 'p40716', 'n/Users/terri/my-api'].join('\n');
+  const out = ['p71201', 'n/Users/dev/Projects/Jumpr', 'p40716', 'n/Users/dev/my-api'].join('\n');
   const map = parseLsofCwd(out);
-  assert.strictEqual(map.get(71201), '/Users/terri/Projects/Jumpr');
-  assert.strictEqual(map.get(40716), '/Users/terri/my-api');
+  assert.strictEqual(map.get(71201), '/Users/dev/Projects/Jumpr');
+  assert.strictEqual(map.get(40716), '/Users/dev/my-api');
 });
 
 test('projectLabel prefers package.json name (scope stripped), else cwd basename', () => {
-  const home = '/Users/terri';
-  assert.strictEqual(projectLabel('/Users/terri/Projects/Jumpr', null, home), 'Jumpr');
-  assert.strictEqual(projectLabel('/Users/terri/x', '@acme/jumpr', home), 'jumpr'); // pkg name wins, scope stripped
-  assert.strictEqual(projectLabel('/Users/terri/x', 'my-api', home), 'my-api');
+  const home = '/Users/dev';
+  assert.strictEqual(projectLabel('/Users/dev/Projects/Jumpr', null, home), 'Jumpr');
+  assert.strictEqual(projectLabel('/Users/dev/x', '@acme/jumpr', home), 'jumpr'); // pkg name wins, scope stripped
+  assert.strictEqual(projectLabel('/Users/dev/x', 'my-api', home), 'my-api');
 });
 
 test('projectLabel returns null for uninformative cwds so the generic name is kept', () => {
-  const home = '/Users/terri';
+  const home = '/Users/dev';
   assert.strictEqual(projectLabel(home, null, home), null); // home dir
   assert.strictEqual(projectLabel('/', null, home), null);  // root
   assert.strictEqual(projectLabel(null, null, home), null); // unknown

@@ -3,7 +3,7 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const { classify, appNameFrom } = require('../server/lib/classify');
 
-const HOME = '/Users/terrichan';
+const HOME = '/Users/dev';
 const ctx = { homeDir: HOME };
 
 // Cases lifted from the ACTUAL corpus on the build machine (not invented).

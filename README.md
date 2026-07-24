@@ -32,20 +32,43 @@ open any dev server from your phone. One Node process, no database, no cloud.
   **green** = known service · **indigo** = your project · **blue** = installed app ·
   **gray** = system/tool · **yellow** = unrecognized. Protected processes show a 🔒 and can't be killed.
 
-## Requirements
+## Get started
 
-- macOS, Node ≥ 18.
-- [Tailscale](https://tailscale.com) (optional) for the phone/copy-link features — install it and
-  sign in on each device, turn on **MagicDNS**. Harbor works fully without it; the links just hide.
+**macOS only.** You need [Node.js](https://nodejs.org) ≥ 18 — check with `node -v`. Nothing else is
+required (no database, no API keys, no accounts).
 
-## Setup
+### Option A — Terminal
 
 ```bash
+git clone https://github.com/terrichan-git/harbor.git
+cd harbor
 npm install
 npm start
 ```
 
-Open **http://localhost:7071**. That's it — on this Mac the UI needs no token.
+Open **http://localhost:7071**. On your own Mac the UI needs no token — that's it.
+
+### Option B — with Claude Code
+
+Let [Claude Code](https://claude.com/claude-code) set it up for you:
+
+```bash
+git clone https://github.com/terrichan-git/harbor.git
+cd harbor
+claude
+```
+
+Then tell it: **“install dependencies and start Harbor, then open it in the browser.”** It will run
+`npm install`, launch on port 7071, and can verify the page loads. (You can also just run `/run`.)
+
+### Then, optionally
+
+- **Start at login** so Harbor is always there: `npm run install-login` (removes with
+  `npm run uninstall-login`).
+- **Reach it from your phone:** install [Tailscale](https://tailscale.com) on your Mac and phone,
+  sign in to the same account on both, and turn on **MagicDNS**. Then on your Mac click
+  **📱 Connect phone** and scan the QR. Harbor works fully without Tailscale — the remote/copy-link
+  features just stay hidden.
 
 > **Port.** Harbor defaults to **7071** (7070 is commonly taken by other dev servers). Run on a
 > different port any time:

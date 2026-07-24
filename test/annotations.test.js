@@ -7,7 +7,7 @@ const path = require('node:path');
 const anno = require('../server/lib/annotations');
 
 test('keyFor prefers cwd, falls back to port, null when neither', () => {
-  assert.strictEqual(anno.keyFor({ cwd: '/Users/t/Jumpr', ports: [4321] }), 'cwd:/Users/t/Jumpr');
+  assert.strictEqual(anno.keyFor({ cwd: '/Users/dev/Jumpr', ports: [4321] }), 'cwd:/Users/dev/Jumpr');
   assert.strictEqual(anno.keyFor({ cwd: null, ports: [3000] }), 'port:3000');
   assert.strictEqual(anno.keyFor({ cwd: null, ports: [] }), null);
 });
