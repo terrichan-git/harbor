@@ -1,7 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { validate, match, normalisePorts, setAutostart, addService } = require('../server/lib/services');
+const { validate, match, normalisePorts, setAutostart, addService, removeService } = require('../server/lib/services');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
@@ -75,6 +75,20 @@ test('addService appends a validated entry, refuses duplicates and invalid input
 
     assert.strictEqual(addService({ name: 'jumpr', cwd: '~/x', command: 'c', port: 9999 }, tmp).ok, false); // dup name
     assert.strictEqual(addService({ name: 'noport', cwd: '~/x', command: 'c' }, tmp).ok, false);            // invalid
+  } finally {
+    fs.rmSync(tmp, { force: true });
+  }
+});
+
+test('removeService deletes the entry and errors on unknown name', () => {
+  const tmp = path.join(os.tmpdir(), `harbor-rm-${process.pid}.json`);
+  fs.writeFileSync(tmp, JSON.stringify({ services: [{ name: 'web', cwd: '~/x', command: 'c', port: 3000 }, { name: 'jumpr', cwd: '~/j', command: 'npm start', port: 4321 }] }, null, 2));
+  try {
+    const r = removeService('jumpr', tmp);
+    assert.strictEqual(r.ok, true);
+    const after = JSON.parse(fs.readFileSync(tmp, 'utf8'));
+    assert.deepStrictEqual(after.services.map((s) => s.name), ['web']);
+    assert.strictEqual(removeService('nope', tmp).ok, false);
   } finally {
     fs.rmSync(tmp, { force: true });
   }

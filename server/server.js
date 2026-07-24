@@ -34,6 +34,7 @@ app.use(express.json());
 
 // ---- startup: token + re-adopt anything still running -----------------------
 auth.getOrCreateToken();
+servicesLib.ensureExists(); // seed services.json from the example on a fresh install
 reconcileOnStartup();
 
 // Re-adopt services that survived a previous Harbor (PRD decision #1). Reconcile decision is the
@@ -113,6 +114,7 @@ app.get('/api/state', auth.requireForRead(), async (req, res) => {
         serviceName,
         managed: managedPids.has(l.pid),
         kind: serviceName ? 'known' : 'rogue',
+        isSelf: l.pid === SELF_PID, // Harbor's own process — shown in its own top section
         annoKey,
         customName: (anno && anno.name) || null,
         description: (anno && anno.description) || null,
@@ -144,6 +146,9 @@ app.get('/api/state', auth.requireForRead(), async (req, res) => {
           status,
           pid: s.listener ? s.listener.pid : null,
           managed: s.listener ? managedPids.has(s.listener.pid) : false,
+          // Harbor promoted as a service (matches its own port) — surfaced in the self section,
+          // never in the Known services groups, so it can't circularly "manage itself".
+          isSelf: s.ports.includes(PORT),
           annoKey: svcAnnoKey,
           customName: (svcAnno && svcAnno.name) || null,
           description: (svcAnno && svcAnno.description) || null,
@@ -217,6 +222,14 @@ app.post('/api/annotations', mutate, (req, res) => {
   const result = annotations.set(key, { name, description });
   if (!result.ok) return res.status(400).json({ error: result.error });
   res.json({ value: result.value });
+});
+
+// Remove a service definition (unpromote). Does not kill the process — only edits services.json.
+app.post('/api/services/:name/remove', mutate, (req, res) => {
+  const result = servicesLib.removeService(req.params.name);
+  if (!result.ok) return res.status(400).json({ error: result.error });
+  everSeenRunning.delete(req.params.name);
+  res.json({ ok: true, removed: result.removed });
 });
 
 // Toggle a service's autostart flag (writes services.json). Token-gated; not destructive, so no

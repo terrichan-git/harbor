@@ -15,7 +15,7 @@ rediscovering something. Add to it the moment something surprises you.
   - `safety.js` — the pure "is this killable?" rule.
   - `tailscale.js`, `auth.js`, `webauthn.js` — tailnet host, token boundary, Touch ID.
 - **Deterministic core is unit-tested** (`npm test`): lsof parsing, port matching, config
-  validation, re-adoption, safety classification, auth origin/loopback logic. 36 tests.
+  validation, re-adoption, safety classification, auth origin/loopback logic. 37 tests.
 
 ## The three expensive-to-reverse decisions (as built)
 
@@ -113,6 +113,19 @@ Frontend is static (`server/public/`), no build step. `index.html` contains a `_
 placeholder the server fills in for loopback requests only. If you rename that placeholder, update
 `server.js`'s `/` route.
 
+- **`services.json` is git-ignored local state; `services.example.json` is the tracked template.**
+  It can hold absolute personal paths (from promoting), so it must never be committed. `servicesLib.ensureExists`
+  seeds it from the example on startup (fresh installs work with `npm start`). `addService` /
+  `removeService` / `setAutostart` are the only writers. If you clone fresh, `cp services.example.json services.json`.
+- **Harbor's own process is pulled into a dedicated top card, never the groups.** Server flags the
+  self listener (`pid === SELF_PID`) and any service on Harbor's own port (`isSelf`); the frontend
+  filters both out of the Known-services and ports groups and renders `#selfCard` instead. This
+  avoids the circular case of Harbor "managing itself" (it's kept alive by launchd) — the self card
+  has no Start/Stop/Restart. A user who promotes Harbor (matching its port) just sees it in the self
+  card, not as a manageable service.
+- **Remove is definition-only.** `POST /api/services/:name/remove` deletes the `services.json` entry
+  and clears its `everSeenRunning` flag; it never signals the process. A still-running removed service
+  reappears as a plain listening port.
 - **Promote a listener → service; "needs restart" is session state.** `POST /api/services`
   appends via `servicesLib.addService` (validates, refuses duplicate names, sole appender of
   `services.json`). The suggested start command comes from `ports.suggestStartCommand` reading the
@@ -143,7 +156,7 @@ placeholder the server fills in for loopback requests only. If you rename that p
 
 ## Verified (measurements, not expectations)
 
-- `npm test`: 36/36 pass.
+- `npm test`: 37/37 pass.
 - Auth: mutation w/o token → 401; non-loopback read w/o token → 401; with token → 200;
   cross-site Origin → 403.
 - Start/Stop/Kill and force-kill exercised live (API + real UI clicks); ports freed, PID files

@@ -9,6 +9,10 @@ data/
 # The launchd log the LaunchAgent writes to (path also lives under data/, kept here for safety)
 *.out.log
 
+# Your machine-specific service definitions (may contain absolute personal paths). Local state,
+# like data/. The tracked template is services.example.json — copy it to services.json.
+services.json
+
 # macOS cruft
 .DS_Store
 

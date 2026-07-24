@@ -255,6 +255,24 @@ async function savePromote() {
     load();
   } catch (err) { toast('Could not add service: ' + err.message); }
 }
+// Remove a service definition (unpromote). Confirm first — but reassure it won't kill anything.
+function confirmRemove(name) {
+  const go = document.createElement('button');
+  go.textContent = 'Remove service';
+  go.className = 'danger';
+  go.onclick = () => removeService(name);
+  openModal('Remove service?',
+    `Remove <b>${esc(name)}</b> from your services? This only deletes the definition — it will <b>not</b> stop the running process. If it's still running it'll reappear below as a plain listening port.`,
+    [closeBtn('Cancel'), go]);
+}
+async function removeService(name) {
+  try {
+    await api(`/api/services/${encodeURIComponent(name)}/remove`, { method: 'POST', body: '{}' });
+    toast(`Removed “${name}”`);
+    closeModal();
+    load();
+  } catch (err) { toast('Remove failed: ' + err.message); }
+}
 async function showLogs(name) {
   try {
     const r = await api(`/api/services/${encodeURIComponent(name)}/logs`);
@@ -283,6 +301,26 @@ function copyChip(link) {
   return `<span class="copy" data-link="${esc(link)}" role="button" tabindex="0" title="Copy ${esc(link)}">🔗 <span class="label">${esc(link)}</span></span>`;
 }
 
+// Harbor's own process, shown in a dedicated card at the very top. Informational only — no
+// Start/Stop/Restart, because Harbor is kept alive by launchd (managing it here would be circular).
+function renderSelf(state) {
+  const card = $('#selfCard');
+  const self = state.listeners.find((l) => l.isSelf);
+  if (!self) { card.innerHTML = ''; return; }
+  const ports = self.ports.map((p) => `<span class="port-chip">:${p}</span>`).join(' ');
+  const links = self.ports.map((p) => tailLink(p)).filter(Boolean).map(copyChip).join(' ');
+  card.innerHTML = `<div class="card self">
+    <div class="row ok">
+      <span class="dot ok"></span>
+      <div class="main">
+        <div class="name">⚓ Harbor <span class="kind ok">this app</span> ${ports}</div>
+        <div class="sub">pid ${self.pid} · kept alive by launchd (starts at login) ${links}</div>
+      </div>
+      <div class="actions"><span class="muted">not manageable here</span></div>
+    </div>
+  </div>`;
+}
+
 function serviceRowHtml(s) {
   // status: running (green) | down = was up, now gone, needs restart (amber) | stopped (gray)
   const status = s.status || (s.running ? 'running' : 'stopped');
@@ -297,6 +335,7 @@ function serviceRowHtml(s) {
   const editBtn = s.annoKey
     ? `<button class="ghost icon" data-act="edit" data-key="${esc(s.annoKey)}" data-label="${esc(s.name)}" data-cname="${esc(s.customName || '')}" data-desc="${esc(s.description || '')}" title="Rename / describe">✎</button>`
     : '';
+  const removeBtn = `<button class="ghost icon" data-act="remove" data-name="${esc(s.name)}" title="Remove this service (unpromote — does not stop the process)">🗑</button>`;
   // autostart toggle — persisted to services.json; takes effect at Harbor's next launch.
   const autostart = `<button class="switch ${s.autostart ? 'on' : ''}" role="switch" aria-checked="${s.autostart}"
       data-act="autostart" data-name="${esc(s.name)}" data-enabled="${s.autostart ? '1' : '0'}"
@@ -315,7 +354,7 @@ function serviceRowHtml(s) {
       <div class="sub">${esc(s.command)}${s.pid ? ` · pid ${s.pid}` : ''} ${links}</div>
       ${desc}
     </div>
-    <div class="actions">${editBtn}${autostart}${runBtns}</div>
+    <div class="actions">${editBtn}${autostart}${runBtns}${removeBtn}</div>
   </div>`;
 }
 
@@ -471,8 +510,11 @@ async function load() {
     $('#selfInfo').textContent = `this is Harbor · pid ${state.self.pid} · :${state.self.port}`;
     $('#touchIdBtn').hidden = state.touchId.enrolled || location.hostname !== 'localhost';
     renderBanners(state);
-    renderServices(state.services);
-    renderPorts(state.listeners);
+    renderSelf(state);
+    // Harbor itself is shown only in its own top section — keep it out of the groups so it
+    // can't be treated as a normal (circular) known service.
+    renderServices(state.services.filter((s) => !s.isSelf));
+    renderPorts(state.listeners.filter((l) => !l.isSelf));
     $('#lastRefresh').textContent = 'updated ' + new Date().toLocaleTimeString();
   } catch (err) {
     if (err.status === 401) {
@@ -515,6 +557,7 @@ document.addEventListener('click', (e) => {
   else if (act === 'autostart') toggleAutostart(name, btn.dataset.enabled === '1');
   else if (act === 'edit') openEditModal(btn.dataset);
   else if (act === 'promote') openPromoteModal(btn.dataset);
+  else if (act === 'remove') confirmRemove(name);
 });
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') closeModal();

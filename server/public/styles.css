@@ -163,6 +163,15 @@ h2.section { font-size: var(--t-lg); margin: var(--s-6) 0 var(--s-3); letter-spa
 /* vertical stack of category cards */
 .stack { display: flex; flex-direction: column; gap: var(--s-3); }
 
+/* Harbor's own top card — visually distinct so it reads as "the app", not a managed service */
+.card.self { border-color: var(--accent); background: var(--accent-soft); margin-bottom: var(--s-5); }
+.card.self .row { border-top: none; box-shadow: inset 3px 0 0 var(--accent); }
+.card.self .name .anchor, .card.self .kind.ok { }
+.card.self .kind.ok { color: #fff; background: var(--accent); }
+
+/* remove (trash) button turns danger on hover */
+button.icon[data-act="remove"]:hover { color: var(--danger); background: var(--danger-soft); }
+
 /* collapsible category groups — each is its own .card */
 .group-head {
   display: flex; align-items: center; gap: var(--s-2); width: 100%;

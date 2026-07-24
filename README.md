@@ -55,7 +55,12 @@ Open **http://localhost:7071**. That's it — on this Mac the UI needs no token.
 
 ### Define your services
 
-Edit [`services.json`](services.json). Each entry:
+`services.json` is **your local machine state** (git-ignored, may contain absolute paths); Harbor
+seeds it from [`services.example.json`](services.example.json) on first run. Add services three ways:
+promote a detected project with **+ Service**, hand-edit `services.json`, or copy the example.
+Remove one with the 🗑 button (deletes the definition only — never stops the process).
+
+Each entry:
 
 ```json
 { "name": "api", "cwd": "~/projects/my-api", "command": "npm run dev", "port": 8080, "autostart": false }

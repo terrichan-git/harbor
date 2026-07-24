@@ -6,6 +6,17 @@
 const fs = require('fs');
 const { PATHS } = require('./paths');
 
+// Fresh install: services.json is git-ignored local state, so seed it from the tracked example
+// the first time Harbor runs. No-op if it already exists.
+function ensureExists() {
+  if (fs.existsSync(PATHS.SERVICES_JSON)) return;
+  try {
+    fs.copyFileSync(PATHS.SERVICES_EXAMPLE, PATHS.SERVICES_JSON);
+  } catch {
+    /* no example to copy — load() tolerates a missing file */
+  }
+}
+
 // Validate the parsed services.json object. Returns { services: [...normalised], errors: [...] }.
 // Normalisation collapses `port` (number) and `port`/`ports` (array) into a numeric ports[].
 // A service with validation errors is dropped from `services` and its problem reported —
@@ -133,6 +144,27 @@ function addService(svc, filePath = PATHS.SERVICES_JSON) {
   return { ok: true, service: normalized };
 }
 
+// Remove a service definition (unpromote). Does NOT touch the running process — only the config.
+// Sole remover of entries from services.json.
+function removeService(name, filePath = PATHS.SERVICES_JSON) {
+  let raw;
+  try {
+    raw = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  } catch (err) {
+    return { ok: false, error: `Could not read services.json: ${err.message}` };
+  }
+  if (!raw || !Array.isArray(raw.services)) return { ok: false, error: 'services.json has no "services" array' };
+  const before = raw.services.length;
+  raw.services = raw.services.filter((s) => !(s && s.name === name));
+  if (raw.services.length === before) return { ok: false, error: `unknown service "${name}"` };
+  try {
+    fs.writeFileSync(filePath, JSON.stringify(raw, null, 2) + '\n');
+  } catch (err) {
+    return { ok: false, error: `Could not write services.json: ${err.message}` };
+  }
+  return { ok: true, removed: name };
+}
+
 // Load + validate from disk. Missing file is not fatal — you may not have defined services yet.
 function load() {
   let raw;
@@ -181,4 +213,4 @@ function match(services, listeners) {
   return { serviceStates, portToService };
 }
 
-module.exports = { validate, load, match, normalisePorts, setAutostart, addService };
+module.exports = { validate, load, match, normalisePorts, setAutostart, addService, removeService, ensureExists };

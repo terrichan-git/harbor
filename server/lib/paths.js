@@ -11,6 +11,7 @@ const PATHS = {
   ROOT,
   PUBLIC: path.join(ROOT, 'server', 'public'),
   SERVICES_JSON: path.join(ROOT, 'services.json'),
+  SERVICES_EXAMPLE: path.join(ROOT, 'services.example.json'),
   DATA: path.join(ROOT, 'data'),
   PIDS: path.join(ROOT, 'data', 'pids'),
   LOGS: path.join(ROOT, 'data', 'logs'),
