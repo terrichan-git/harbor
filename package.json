@@ -10,6 +10,7 @@
   "scripts": {
     "start": "node server/server.js",
     "test": "node --test",
+    "restart": "node scripts/restart.js",
     "install-login": "node scripts/install-login.js",
     "uninstall-login": "node scripts/uninstall-login.js"
   },

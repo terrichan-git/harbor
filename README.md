@@ -87,7 +87,8 @@ Then tell it: **“install dependencies and start Harbor, then open it in the br
 `services.json` is **your local machine state** (git-ignored, may contain absolute paths); Harbor
 seeds it from [`services.example.json`](services.example.json) on first run. Add services three ways:
 promote a detected project with **+ Service**, hand-edit `services.json`, or copy the example.
-Remove one with the 🗑 button (deletes the definition only — never stops the process).
+**Demote** one back to a plain listening port with its Demote button (removes the definition only —
+never stops the process).
 
 Each entry:
 
@@ -102,6 +103,29 @@ Each entry:
 - `cwd` may use `~`. The command runs through your shell in that directory.
 
 Hit **Refresh** (or the list auto-refreshes every 4s) to pick up changes.
+
+## Run it as a desktop app
+
+Harbor ships a web manifest, so you can run it in **its own window with a Dock icon** — no browser
+tabs, no chrome. It's the same `localhost` URL, just framed as an app (localhost is a secure
+context, so this works without HTTPS).
+
+- **Safari** (macOS Sonoma+): open http://localhost:7071 → **File → Add to Dock**.
+- **Chrome / Edge / Arc**: open http://localhost:7071 → the **Install** icon in the address bar
+  (or ⋮ menu → *Install Harbor…* / *Cast, save & share → Create shortcut → Open as window*).
+
+Pair that with **start-at-login** (`npm run install-login`) and Harbor is just *always there*: the
+launchd service keeps the one process running (and restarts it if it dies), so the Dock window opens
+instantly with nothing to start in a terminal.
+
+### Making changes
+
+Harbor has **no build step** — the frontend is served straight from `server/public`, so UI edits
+show on a plain browser refresh. Only **server-code** changes need a restart:
+
+```bash
+npm run restart   # reload the login-launched Harbor (server code)
+```
 
 ## Reach it from your phone (Tailscale)
 

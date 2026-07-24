@@ -107,6 +107,26 @@ rediscovering something. Add to it the moment something surprises you.
   mtime cache if listener counts ever explode). cwd `/` or the home dir are treated as
   uninformative so the generic name ("ControlCenter") is kept.
 
+## App-install + always-on (and why the two usual traps don't bite here)
+
+- **Installable as a desktop app.** `index.html` links `manifest.webmanifest` (`display: standalone`,
+  192/512 + a maskable icon, `apple-touch-icon`, theme-color + `apple-mobile-web-app-*` meta), so
+  Chromium offers **Install** and Safari **Add to Dock** — a standalone window, no browser chrome.
+  Works on `localhost` with **no HTTPS** (localhost is a secure context). No service worker on
+  purpose: a caching SW on a fast-changing local tool is a staleness footgun, and it isn't needed for
+  install.
+- **Always-on = the launchd LaunchAgent** (`RunAtLoad` + `KeepAlive`, PATH pinned, absolute node —
+  see the "Launch at login" trap). The Dock app is only a *window*; this is what keeps the process up.
+- **Trap 1 (minimal launchd env) — N/A here, deliberately.** The playbook warns to load `.env` and
+  reference CLIs by absolute path or subscription back-ends won't be found. Harbor has **no secrets,
+  no `.env`, and no model/CLI back-ends** (it's a no-AI app). Its one external tool, `tailscale`, is
+  already found via absolute-path candidates (`tailscale.js`) plus the pinned PATH. So there's
+  nothing to load — but if you ever add a secret, load it in-code (Node 18 friends can't use
+  `--env-file`), not via the plist.
+- **Trap 2 (rebuild to see changes) — INVERTED here.** There is **no build step**; the server serves
+  `server/public` as-is. So frontend edits show on a browser refresh; only server-code changes need a
+  restart, via `npm run restart` (`launchctl kickstart -k`, in `scripts/restart.js`).
+
 ## Frontend note
 
 Frontend is static (`server/public/`), no build step. `index.html` contains a `__HARBOR_TOKEN__`
