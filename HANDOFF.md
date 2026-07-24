@@ -15,7 +15,7 @@ rediscovering something. Add to it the moment something surprises you.
   - `safety.js` — the pure "is this killable?" rule.
   - `tailscale.js`, `auth.js`, `webauthn.js` — tailnet host, token boundary, Touch ID.
 - **Deterministic core is unit-tested** (`npm test`): lsof parsing, port matching, config
-  validation, re-adoption, safety classification, auth origin/loopback logic. 32 tests.
+  validation, re-adoption, safety classification, auth origin/loopback logic. 34 tests.
 
 ## The three expensive-to-reverse decisions (as built)
 
@@ -113,6 +113,15 @@ Frontend is static (`server/public/`), no build step. `index.html` contains a `_
 placeholder the server fills in for loopback requests only. If you rename that placeholder, update
 `server.js`'s `/` route.
 
+- **Rename/describe annotations are keyed by cwd (fallback port), in `data/annotations.json`.**
+  `annotations.js` is the sole writer of that file (git-ignored user state). `keyFor` returns
+  `cwd:<dir>` when the listener has a working directory, else `port:<n>` — so a custom name follows
+  a project across restarts and port changes, and two instances from the same dir share it. A custom
+  name overrides the auto-derived `label` everywhere (`server.js` sets `label = anno.name || label`).
+  Write path unit-tested against a temp file (`test/annotations.test.js`). Because the key is the
+  cwd, renaming a listener with no readable cwd falls back to the port — which is less stable, so a
+  port-keyed annotation can attach to a different process if that port is later reused. Acceptable
+  for a solo tool; noted here so it's not a surprise.
 - **Listening ports are grouped by category with collapsible sections.** `renderPorts` buckets by
   `groupKeyFor` (known service → 'known', else the classifier category) into `PORT_GROUPS` order.
   Collapsed state lives in `localStorage.harbor_collapsed` and is **re-read on every render** — this
@@ -122,7 +131,7 @@ placeholder the server fills in for loopback requests only. If you rename that p
 
 ## Verified (measurements, not expectations)
 
-- `npm test`: 32/32 pass.
+- `npm test`: 34/34 pass.
 - Auth: mutation w/o token → 401; non-loopback read w/o token → 401; with token → 200;
   cross-site Origin → 403.
 - Start/Stop/Kill and force-kill exercised live (API + real UI clicks); ports freed, PID files

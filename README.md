@@ -17,7 +17,9 @@ open any dev server from your phone. One Node process, no database, no cloud.
   `package.json` name), so five `node` servers read as `jumpr-local`, `my-api`, … not all "node".
 - **Typed by origin**: every listening port is classified — **your project**, an **installed app**
   (with its name, e.g. Raycast/Grain), a **macOS system** process, a **CLI tool**, or an
-  **unrecognized** process — so "what is this on this port?" is answered at a glance.
+  **unrecognized** process — grouped into **collapsible sections** so you can fold away the noise.
+- **Rename & describe**: give any port a custom name + description (the ✎ button). Keyed by the
+  project's folder, so it sticks across restarts and port changes.
 - **Survive & re-adopt**: services Harbor starts keep running if Harbor restarts/crashes, and get
   re-attached on the next launch.
 - **Tailscale links**: per-port `http://<machine>.<tailnet>.ts.net:<port>` you can copy in one click,

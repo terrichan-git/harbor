@@ -12,6 +12,7 @@ const servicesLib = require('./lib/services');
 const registry = require('./lib/registry');
 const processes = require('./lib/processes');
 const safety = require('./lib/safety');
+const annotations = require('./lib/annotations');
 const tailscale = require('./lib/tailscale');
 const auth = require('./lib/auth');
 const webauthn = require('./lib/webauthn');
@@ -92,11 +93,14 @@ app.get('/api/state', auth.requireForRead(), async (req, res) => {
     const { serviceStates, portToService } = servicesLib.match(services, listeners);
 
     const managedPids = new Set(registry.readAll().map((r) => r.pid));
+    const annoStore = annotations.load();
 
     const enriched = listeners.map((l) => {
       const guard = safety.classify(l, { selfPid: SELF_PID, currentUid: CURRENT_UID });
       // A listener is "known" (green) if any of its ports maps to a service; else "rogue" (yellow).
       const serviceName = l.ports.map((p) => portToService.get(p)).find(Boolean) || null;
+      const annoKey = annotations.keyFor(l);
+      const anno = annoKey ? annoStore[annoKey] : null;
       return {
         ...l,
         protected: guard.protected,
@@ -104,6 +108,11 @@ app.get('/api/state', auth.requireForRead(), async (req, res) => {
         serviceName,
         managed: managedPids.has(l.pid),
         kind: serviceName ? 'known' : 'rogue',
+        annoKey,
+        customName: (anno && anno.name) || null,
+        description: (anno && anno.description) || null,
+        // A custom name overrides the auto-derived label everywhere it's shown.
+        label: (anno && anno.name) || l.label,
       };
     });
 
@@ -168,6 +177,15 @@ app.post('/api/kill', destructive, async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: String(err.message || err) });
   }
+});
+
+// Set a custom name + description for a listener (keyed by cwd/port — see annotations.js).
+// Token-gated; not destructive (just metadata), so no Touch ID gate.
+app.post('/api/annotations', mutate, (req, res) => {
+  const { key, name, description } = req.body || {};
+  const result = annotations.set(key, { name, description });
+  if (!result.ok) return res.status(400).json({ error: result.error });
+  res.json({ value: result.value });
 });
 
 // Toggle a service's autostart flag (writes services.json). Token-gated; not destructive, so no

@@ -16,6 +16,7 @@ const PATHS = {
   LOGS: path.join(ROOT, 'data', 'logs'),
   TOKEN: path.join(ROOT, 'data', 'token'),
   WEBAUTHN: path.join(ROOT, 'data', 'webauthn.json'),
+  ANNOTATIONS: path.join(ROOT, 'data', 'annotations.json'),
   LAUNCH_LOG: path.join(ROOT, 'data', 'harbor.out.log'),
 };
 

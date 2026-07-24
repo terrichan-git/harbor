@@ -126,6 +126,8 @@ h2.section { font-size: var(--t-lg); margin: var(--s-6) 0 var(--s-3); letter-spa
 .row .name { font-weight: 600; display: flex; align-items: center; gap: var(--s-2); }
 .row .sub { color: var(--text-3); font-size: var(--t-xs); font-family: var(--mono);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row .desc { color: var(--text-2); font-size: var(--t-xs); font-style: italic; margin-top: 3px;
+  white-space: normal; }
 .row .actions { display: flex; gap: var(--s-2); align-items: center; }
 
 /* status dot + kind */
@@ -273,6 +275,14 @@ button.icon { padding: 6px 8px; }
   max-height: 50vh; overflow: auto; white-space: pre-wrap; word-break: break-word;
 }
 .modal .foot { display: flex; justify-content: flex-end; gap: var(--s-2); margin-top: var(--s-4); }
+.field { margin-bottom: var(--s-3); }
+.field label { display: block; font-size: var(--t-xs); font-weight: 600; color: var(--text-2); margin-bottom: 4px; }
+.field input, .field textarea {
+  width: 100%; font: inherit; font-size: var(--t-sm); color: var(--text);
+  background: var(--surface-2); border: 1px solid var(--border-strong); border-radius: var(--r-sm);
+  padding: 8px 10px; resize: vertical;
+}
+.field input:focus, .field textarea:focus { outline: none; box-shadow: var(--focus); border-color: var(--accent); }
 
 .empty { padding: var(--s-6); text-align: center; color: var(--text-3); font-size: var(--t-sm); }
 

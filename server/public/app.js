@@ -186,6 +186,35 @@ function confirmForce(onConfirm, name, pid) {
     [closeBtn('Cancel'), go]
   );
 }
+// Rename / describe a listener. Opens a small form; Save writes the annotation (keyed by cwd/port).
+function openEditModal(ds) {
+  const body = `
+    <div class="field">
+      <label for="annoName">Name</label>
+      <input id="annoName" type="text" maxlength="60" value="${esc(ds.cname || '')}" placeholder="${esc(ds.label || '')}">
+    </div>
+    <div class="field">
+      <label for="annoDesc">Description</label>
+      <textarea id="annoDesc" rows="3" maxlength="280" placeholder="What is this? Notes for future you…">${esc(ds.desc || '')}</textarea>
+    </div>
+    <p class="muted" style="margin:0">Applies to this project (matched by its folder), so it sticks across restarts. Clear both fields to remove.</p>`;
+  const save = document.createElement('button');
+  save.textContent = 'Save';
+  save.className = 'primary';
+  save.onclick = () => saveAnnotation(ds.key);
+  openModal('Rename / describe', body, [closeBtn('Cancel'), save]);
+  setTimeout(() => { const el = $('#annoName'); if (el) el.focus(); }, 30);
+}
+async function saveAnnotation(key) {
+  const name = $('#annoName').value.trim();
+  const description = $('#annoDesc').value.trim();
+  try {
+    await api('/api/annotations', { method: 'POST', body: JSON.stringify({ key, name, description }) });
+    toast(name || description ? 'Saved' : 'Cleared');
+    closeModal();
+    load();
+  } catch (err) { toast('Save failed: ' + err.message); }
+}
 async function showLogs(name) {
   try {
     const r = await api(`/api/services/${encodeURIComponent(name)}/logs`);
@@ -282,6 +311,11 @@ function rowHtml(l) {
   // Primary label is the enriched name; show the generic process name as a small tag when it
   // differs (e.g. "Jumpr" with a "node" tag), so identity and runtime are both visible.
   const procTag = l.label && l.name && l.label !== l.name ? `<span class="proc-tag">${esc(l.name)}</span>` : '';
+  const desc = l.description ? `<div class="desc">${esc(l.description)}</div>` : '';
+  // Rename / describe — available when the listener has a stable key (cwd or port).
+  const editBtn = l.annoKey
+    ? `<button class="ghost icon" data-act="edit" data-key="${esc(l.annoKey)}" data-label="${esc(l.label || l.name)}" data-cname="${esc(l.customName || '')}" data-desc="${esc(l.description || '')}" title="Rename / describe">✎</button>`
+    : '';
   const action = l.protected
     ? `<span class="lock" title="${esc(l.protectedReason)}">🔒 ${esc(l.protectedReason)}</span>`
     : `<button class="danger" data-act="kill" data-pid="${l.pid}" data-name="${esc(l.label || l.name)}">Kill</button>`;
@@ -290,8 +324,9 @@ function rowHtml(l) {
     <div class="main">
       <div class="name">${esc(l.label || l.name)} ${procTag} ${badge} ${ports}</div>
       <div class="sub">pid ${l.pid} · ${esc(l.command)} ${links}</div>
+      ${desc}
     </div>
-    <div class="actions">${action}</div>
+    <div class="actions">${editBtn}${action}</div>
   </div>`;
 }
 
@@ -384,6 +419,7 @@ document.addEventListener('click', (e) => {
   else if (act === 'stop') stopService(name);
   else if (act === 'logs') showLogs(name);
   else if (act === 'autostart') toggleAutostart(name, btn.dataset.enabled === '1');
+  else if (act === 'edit') openEditModal(btn.dataset);
 });
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') closeModal();
