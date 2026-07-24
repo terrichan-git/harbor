@@ -33,11 +33,12 @@ npm install
 npm start
 ```
 
-Open **http://localhost:7070**. That's it — on this Mac the UI needs no token.
+Open **http://localhost:7071**. That's it — on this Mac the UI needs no token.
 
-> **Port already in use?** Harbor defaults to 7070. If something else owns it, run on another port:
+> **Port.** Harbor defaults to **7071** (7070 is commonly taken by other dev servers). Run on a
+> different port any time:
 > ```bash
-> HARBOR_PORT=7071 npm start
+> HARBOR_PORT=8090 npm start
 > ```
 
 ### Define your services
@@ -59,7 +60,7 @@ Hit **Refresh** (or the list auto-refreshes every 4s) to pick up changes.
 With Tailscale up, Harbor prints a tokenized URL on startup:
 
 ```
-http://<your-machine>.<tailnet>.ts.net:7070/?token=<token>
+http://<your-machine>.<tailnet>.ts.net:7071/?token=<token>
 ```
 
 Open that once on your phone (on the same tailnet); it stores the token and drops it from the
@@ -68,7 +69,7 @@ address bar. From then on you can Start/Stop/Kill remotely. The token lives in `
 
 ## Touch ID (optional, this Mac only)
 
-Open Harbor via **http://localhost:7070** (the hostname `localhost`, not `127.0.0.1`) and click
+Open Harbor via **http://localhost:7071** (the hostname `localhost`, not `127.0.0.1`) and click
 **Set up Touch ID**. After enrolling, Kill/Stop from this Mac require a fingerprint. It never
 replaces the token — the phone still uses the token. (WebAuthn needs the `localhost` hostname; see
 HANDOFF.md for why.)
@@ -85,7 +86,7 @@ Logs from the login-launched process go to `data/harbor.out.log`.
 ## Run it
 
 ```bash
-npm start            # foreground on :7070 (or HARBOR_PORT)
+npm start            # foreground on :7071 (or HARBOR_PORT)
 npm test             # unit tests for the deterministic core
 ```
 

@@ -16,7 +16,7 @@ Harbor — local macOS port manager. Full brief in **AGENTS.md**; architecture +
 ## Commands
 
 ```bash
-npm start                 # foreground, :7070 (or HARBOR_PORT)
+npm start                 # foreground, :7071 (or HARBOR_PORT)
 npm test                  # 22 unit tests
 npm run install-login     # LaunchAgent: start at login
 ```

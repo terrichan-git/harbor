@@ -5,7 +5,7 @@ rediscovering something. Add to it the moment something surprises you.
 
 ## Architecture in one screen
 
-- **One Node/Express process**, binds `0.0.0.0:7070` (overridable via `HARBOR_PORT`). Serves the
+- **One Node/Express process**, binds `0.0.0.0:7071` by default (overridable via `HARBOR_PORT`). Serves the
   static frontend AND the JSON API. No database — state is flat files under `data/`.
 - **`server/lib/` — one home per concern**, each invoked (never re-implemented) by routes:
   - `ports.js` — `lsof -F` + `ps -o command=` → merged listener records. Pure parsers exported for tests.

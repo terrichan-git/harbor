@@ -16,10 +16,9 @@ const tailscale = require('./lib/tailscale');
 const auth = require('./lib/auth');
 const webauthn = require('./lib/webauthn');
 
-// 7070 by default (per spec); overridable so it can dodge a collision with another local
-// dev server. On this dev machine 7070 was already taken by an unrelated app, which is exactly
-// the kind of conflict Harbor surfaces.
-const PORT = Number(process.env.HARBOR_PORT) || 7070;
+// Default port lives in one place (lib/config); 7071 because 7070 is commonly taken by other
+// local dev servers. Override at runtime with HARBOR_PORT.
+const PORT = Number(process.env.HARBOR_PORT) || require('./lib/config').DEFAULT_PORT;
 const HOST = '0.0.0.0';
 const SELF_PID = process.pid;
 const CURRENT_UID = process.getuid();

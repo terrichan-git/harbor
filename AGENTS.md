@@ -8,7 +8,7 @@ kills processes safely, exposes Tailscale links.
 
 ```bash
 npm install
-npm start            # http://localhost:7070  (override with HARBOR_PORT=7071)
+npm start            # http://localhost:7071  (override with HARBOR_PORT=8090)
 npm test             # node --test — the deterministic core
 ```
 

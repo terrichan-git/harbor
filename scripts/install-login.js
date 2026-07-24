@@ -13,6 +13,7 @@ const ROOT = path.resolve(__dirname, '..');
 const NODE = process.execPath; // absolute path to the node running THIS script
 const SERVER = path.join(ROOT, 'server', 'server.js');
 const LOG = path.join(ROOT, 'data', 'harbor.out.log');
+const PORT = require(path.join(ROOT, 'server', 'lib', 'config')).DEFAULT_PORT;
 const plistPath = path.join(os.homedir(), 'Library', 'LaunchAgents', `${LABEL}.plist`);
 const uid = process.getuid();
 
@@ -55,7 +56,7 @@ try {
   execFileSync('launchctl', ['enable', `${domain}/${LABEL}`], { stdio: 'ignore' });
   execFileSync('launchctl', ['kickstart', '-k', `${domain}/${LABEL}`], { stdio: 'ignore' });
   console.log('\nHarbor is now running and will start at every login.');
-  console.log('  Open   http://localhost:7070');
+  console.log(`  Open   http://localhost:${PORT}`);
   console.log(`  Logs   ${LOG}`);
   console.log('  Stop   npm run uninstall-login');
 } catch (err) {
