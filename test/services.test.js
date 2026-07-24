@@ -1,7 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { validate, match, normalisePorts, setAutostart } = require('../server/lib/services');
+const { validate, match, normalisePorts, setAutostart, addService } = require('../server/lib/services');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
@@ -57,6 +57,26 @@ test('setAutostart flips only the target flag and preserves the rest of the file
     assert.strictEqual(setAutostart('nope', true, tmp).ok, false);
   } finally {
     fs.rmSync(tmp, { force: true }); // leave no test data behind
+  }
+});
+
+test('addService appends a validated entry, refuses duplicates and invalid input', () => {
+  const tmp = path.join(os.tmpdir(), `harbor-add-${process.pid}.json`);
+  fs.writeFileSync(tmp, JSON.stringify({ $comment: 'x', services: [{ name: 'web', cwd: '~/x', command: 'c', port: 3000 }] }, null, 2));
+  try {
+    const r = addService({ name: 'jumpr', cwd: '~/Projects/Jumpr', command: 'npm run dev', port: 4321 }, tmp);
+    assert.strictEqual(r.ok, true);
+    const after = JSON.parse(fs.readFileSync(tmp, 'utf8'));
+    assert.strictEqual(after.$comment, 'x');                  // preserved
+    assert.strictEqual(after.services.length, 2);
+    assert.strictEqual(after.services[1].name, 'jumpr');
+    assert.strictEqual(after.services[1].port, 4321);
+    assert.strictEqual(after.services[1].autostart, false);
+
+    assert.strictEqual(addService({ name: 'jumpr', cwd: '~/x', command: 'c', port: 9999 }, tmp).ok, false); // dup name
+    assert.strictEqual(addService({ name: 'noport', cwd: '~/x', command: 'c' }, tmp).ok, false);            // invalid
+  } finally {
+    fs.rmSync(tmp, { force: true });
   }
 });
 

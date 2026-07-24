@@ -122,15 +122,27 @@ function projectLabel(cwd, pkgName, homeDir) {
   return base || null;
 }
 
-// Read the "name" field from <cwd>/package.json, or null. Best-effort — most dev servers run from
-// their project root, so this catches the common case without walking the tree.
-function readPkgName(cwd) {
+// Read <cwd>/package.json for the name + scripts, best-effort. Most dev servers run from their
+// project root, so this catches the common case without walking the tree.
+function readPkg(cwd) {
   try {
     const pkg = JSON.parse(fs.readFileSync(path.join(cwd, 'package.json'), 'utf8'));
-    return typeof pkg.name === 'string' ? pkg.name : null;
+    return {
+      name: typeof pkg.name === 'string' ? pkg.name : null,
+      scripts: pkg.scripts && typeof pkg.scripts === 'object' ? pkg.scripts : {},
+    };
   } catch {
-    return null;
+    return { name: null, scripts: {} };
   }
+}
+
+// Suggest a start command when promoting a detected process to a service. Prefer an npm script
+// (dev, then start) over the raw runtime command, because "npm run dev" is what you actually type.
+function suggestStartCommand(scripts, fallback) {
+  if (scripts && scripts.dev) return 'npm run dev';
+  if (scripts && scripts.start) return 'npm start';
+  if (scripts && scripts.serve) return 'npm run serve';
+  return fallback || '';
 }
 
 // Collapse per-socket lsof rows + ps commands into one record per pid, with a ports[] list.
@@ -183,7 +195,8 @@ async function listListeners() {
   const home = os.homedir();
   for (const rec of merged) {
     const cwd = cwdByPid.get(rec.pid) || null;
-    const project = projectLabel(cwd, cwd ? readPkgName(cwd) : null, home);
+    const pkg = cwd ? readPkg(cwd) : { name: null, scripts: {} };
+    const project = projectLabel(cwd, pkg.name, home);
     const { category, appName } = classify({ command: rec.command, cwd }, { homeDir: home });
     rec.cwd = cwd;
     rec.project = project;
@@ -192,6 +205,8 @@ async function listListeners() {
     // Primary display label: the app's real name for installed apps (so a helper daemon whose cwd
     // basename is "MacOS" reads as its app), else the project name, else the generic process name.
     rec.label = (category === 'app' && appName) || project || rec.name;
+    // Suggested command if you promote this to a service (npm script preferred).
+    rec.suggestedCommand = suggestStartCommand(pkg.scripts, rec.command);
   }
   return merged;
 }
@@ -206,4 +221,5 @@ module.exports = {
   mergeListeners,
   parseLsofCwd,
   projectLabel,
+  suggestStartCommand,
 };

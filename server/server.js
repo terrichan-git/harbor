@@ -24,6 +24,11 @@ const HOST = '0.0.0.0';
 const SELF_PID = process.pid;
 const CURRENT_UID = process.getuid();
 
+// Known services we've seen listening during THIS Harbor session. Lets us distinguish a service
+// that is merely "stopped" (never came up) from one that was running and DROPPED — i.e. "needs
+// restart". Reset on Harbor restart (best-effort within a session). A deliberate Stop clears it.
+const everSeenRunning = new Set();
+
 const app = express();
 app.use(express.json());
 
@@ -120,16 +125,23 @@ app.get('/api/state', auth.requireForRead(), async (req, res) => {
     res.json({
       self: { pid: SELF_PID, port: PORT },
       listeners: enriched,
-      services: serviceStates.map((s) => ({
-        name: s.name,
-        ports: s.ports,
-        command: s.command,
-        cwd: s.cwd,
-        autostart: s.autostart,
-        running: s.running,
-        pid: s.listener ? s.listener.pid : null,
-        managed: s.listener ? managedPids.has(s.listener.pid) : false,
-      })),
+      services: serviceStates.map((s) => {
+        if (s.running) everSeenRunning.add(s.name);
+        // status: running | down (was up / Harbor-started but now not listening) | stopped.
+        const hasPidfile = !!registry.read(s.name);
+        const status = s.running ? 'running' : ((hasPidfile || everSeenRunning.has(s.name)) ? 'down' : 'stopped');
+        return {
+          name: s.name,
+          ports: s.ports,
+          command: s.command,
+          cwd: s.cwd,
+          autostart: s.autostart,
+          running: s.running,
+          status,
+          pid: s.listener ? s.listener.pid : null,
+          managed: s.listener ? managedPids.has(s.listener.pid) : false,
+        };
+      }),
       configErrors: errors,
       tailscale: { host },
       touchId: { enrolled: webauthn.isEnrolled() },
@@ -179,6 +191,18 @@ app.post('/api/kill', destructive, async (req, res) => {
   }
 });
 
+// Promote a detected listener to a known service (appends to services.json). Token-gated.
+app.post('/api/services', mutate, (req, res) => {
+  const { name, cwd, command, port } = req.body || {};
+  // port may arrive as a number, an array, or a "4000,4001" string.
+  let ports = port;
+  if (typeof port === 'string') ports = port.split(',').map((s) => Number(s.trim())).filter(Boolean);
+  if (Array.isArray(ports) && ports.length === 1) ports = ports[0];
+  const result = servicesLib.addService({ name, cwd, command, port: ports });
+  if (!result.ok) return res.status(400).json({ error: result.error });
+  res.json({ ok: true, name: result.service.name });
+});
+
 // Set a custom name + description for a listener (keyed by cwd/port — see annotations.js).
 // Token-gated; not destructive (just metadata), so no Touch ID gate.
 app.post('/api/annotations', mutate, (req, res) => {
@@ -220,6 +244,11 @@ app.post('/api/services/:name/stop', destructive, async (req, res) => {
   }
   try {
     const result = await processes.stopManaged(record, { force });
+    // A deliberate Stop is not "needs restart" — clear the was-running signal so it reads as
+    // cleanly stopped, not down. (Only clears once the stop actually completed.)
+    if (result.status === 'stopped' || result.status === 'killed' || result.status === 'already-stopped') {
+      everSeenRunning.delete(req.params.name);
+    }
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: String(err.message || err) });

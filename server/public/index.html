@@ -24,20 +24,24 @@
 
     <div id="banners"></div>
 
-    <h2 class="section">Known services</h2>
-    <div class="card" id="servicesCard"><div class="empty">Loading…</div></div>
-
     <h2 class="section">Listening ports</h2>
-    <div class="card" id="portsCard"><div class="empty">Loading…</div></div>
+    <div id="portsCard" class="stack"><div class="empty">Loading…</div></div>
 
-    <p class="muted" style="margin-top:var(--s-6)">
-      <b>Services:</b> green = running · gray = stopped.
+    <p class="muted" style="margin-top:var(--s-4)">
       <b>Ports by type:</b> <span style="color:var(--ok)">■</span> known service ·
       <span style="color:var(--proj)">■</span> your project ·
       <span style="color:var(--app)">■</span> installed app ·
       <span style="color:var(--idle)">■</span> system / tool ·
       <span style="color:var(--warn)">■</span> unrecognized.
       Protected processes show a 🔒 and can't be killed.
+    </p>
+
+    <h2 class="section">Known services</h2>
+    <div class="card" id="servicesCard"><div class="empty">Loading…</div></div>
+    <p class="muted" style="margin-top:var(--s-2)">
+      <b>Services:</b> <span style="color:var(--ok)">■</span> running ·
+      <span style="color:var(--warn)">■</span> needs restart (was up, now down) ·
+      <span style="color:var(--idle)">■</span> stopped. Promote a project from above to manage it here.
     </p>
   </div>
 

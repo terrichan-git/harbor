@@ -20,6 +20,9 @@ open any dev server from your phone. One Node process, no database, no cloud.
   **unrecognized** process — grouped into **collapsible sections** so you can fold away the noise.
 - **Rename & describe**: give any port a custom name + description (the ✎ button). Keyed by the
   project's folder, so it sticks across restarts and port changes.
+- **Promote to service** (the **+ Service** button): turn a detected project into a managed service
+  — Harbor pre-fills its folder, port, and a suggested start command (from `package.json`). Once
+  saved it gets Start / Stop / autostart, and shows **needs restart** if it later goes down.
 - **Survive & re-adopt**: services Harbor starts keep running if Harbor restarts/crashes, and get
   re-attached on the next launch.
 - **Tailscale links**: per-port `http://<machine>.<tailnet>.ts.net:<port>` you can copy in one click,

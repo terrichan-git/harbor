@@ -96,6 +96,43 @@ function setAutostart(name, enabled, filePath = PATHS.SERVICES_JSON) {
   return { ok: true, autostart: svc.autostart };
 }
 
+// Append a new service (promote a detected listener). Validates the single entry, refuses a
+// duplicate name, and writes it into services.json. Autostart defaults off. Returns { ok } or
+// { ok:false, error }.
+function addService(svc, filePath = PATHS.SERVICES_JSON) {
+  const check = validate({ services: [svc] });
+  if (check.errors.length) return { ok: false, error: check.errors[0].replace(/^service\[0\][^:]*:\s*/, '') };
+  const normalized = check.services[0];
+
+  let raw;
+  try {
+    raw = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  } catch (err) {
+    if (err.code === 'ENOENT') raw = { services: [] };
+    else return { ok: false, error: `Could not read services.json: ${err.message}` };
+  }
+  if (!raw || typeof raw !== 'object') raw = { services: [] };
+  if (!Array.isArray(raw.services)) raw.services = [];
+  if (raw.services.some((s) => s && s.name === normalized.name)) {
+    return { ok: false, error: `a service named "${normalized.name}" already exists` };
+  }
+
+  raw.services.push({
+    name: normalized.name,
+    cwd: svc.cwd,
+    command: svc.command,
+    // preserve single-vs-array shape for readability
+    port: normalized.ports.length === 1 ? normalized.ports[0] : normalized.ports,
+    autostart: false,
+  });
+  try {
+    fs.writeFileSync(filePath, JSON.stringify(raw, null, 2) + '\n');
+  } catch (err) {
+    return { ok: false, error: `Could not write services.json: ${err.message}` };
+  }
+  return { ok: true, service: normalized };
+}
+
 // Load + validate from disk. Missing file is not fatal — you may not have defined services yet.
 function load() {
   let raw;
@@ -144,4 +181,4 @@ function match(services, listeners) {
   return { serviceStates, portToService };
 }
 
-module.exports = { validate, load, match, normalisePorts, setAutostart };
+module.exports = { validate, load, match, normalisePorts, setAutostart, addService };

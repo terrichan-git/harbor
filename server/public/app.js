@@ -215,6 +215,46 @@ async function saveAnnotation(key) {
     load();
   } catch (err) { toast('Save failed: ' + err.message); }
 }
+// Promote a detected listener to a known service. Pre-fills name/dir/command/port from what Harbor
+// detected; you confirm the start command (e.g. `npm run dev`).
+function openPromoteModal(ds) {
+  const body = `
+    <div class="field">
+      <label for="svcName">Service name</label>
+      <input id="svcName" type="text" maxlength="60" value="${esc(ds.label || '')}">
+    </div>
+    <div class="field">
+      <label for="svcCmd">Start command</label>
+      <input id="svcCmd" type="text" value="${esc(ds.command || '')}">
+    </div>
+    <div class="field">
+      <label for="svcPort">Port(s)</label>
+      <input id="svcPort" type="text" value="${esc(ds.port || '')}">
+    </div>
+    <div class="field">
+      <label for="svcCwd">Working directory</label>
+      <input id="svcCwd" type="text" value="${esc(ds.cwd || '')}">
+    </div>
+    <p class="muted" style="margin:0">Harbor will run <b>the start command</b> in this directory. Once saved it appears under Known services with Start / Stop / autostart, and shows “needs restart” if it goes down.</p>`;
+  const save = document.createElement('button');
+  save.textContent = 'Add service';
+  save.className = 'primary';
+  save.onclick = savePromote;
+  openModal('Promote to service', body, [closeBtn('Cancel'), save]);
+}
+async function savePromote() {
+  const name = $('#svcName').value.trim();
+  const command = $('#svcCmd').value.trim();
+  const port = $('#svcPort').value.trim();
+  const cwd = $('#svcCwd').value.trim();
+  if (!name || !command || !port || !cwd) return toast('All fields are required');
+  try {
+    await api('/api/services', { method: 'POST', body: JSON.stringify({ name, command, port, cwd }) });
+    toast(`Added “${name}” as a service`);
+    closeModal();
+    load();
+  } catch (err) { toast('Could not add service: ' + err.message); }
+}
 async function showLogs(name) {
   try {
     const r = await api(`/api/services/${encodeURIComponent(name)}/logs`);
@@ -247,8 +287,10 @@ function renderServices(services) {
   const card = $('#servicesCard');
   if (!services.length) { card.innerHTML = `<div class="empty">No services defined. Add some to <code>services.json</code> and hit Refresh.</div>`; return; }
   card.innerHTML = services.map((s) => {
-    const kind = s.running ? 'ok' : 'idle';
-    const label = s.running ? 'running' : 'stopped';
+    // status: running (green) | down = was up, now gone, needs restart (amber) | stopped (gray)
+    const status = s.status || (s.running ? 'running' : 'stopped');
+    const kind = status === 'running' ? 'ok' : status === 'down' ? 'warn' : 'idle';
+    const label = status === 'running' ? 'running' : status === 'down' ? 'needs restart' : 'stopped';
     const ports = s.ports.map((p) => `<span class="port-chip">:${p}</span>`).join(' ');
     const links = s.running ? s.ports.map((p) => tailLink(p)).filter(Boolean).map(copyChip).join(' ') : '';
     // autostart toggle — persisted to services.json; takes effect at Harbor's next launch.
@@ -256,10 +298,11 @@ function renderServices(services) {
         data-act="autostart" data-name="${esc(s.name)}" data-enabled="${s.autostart ? '1' : '0'}"
         title="Start &quot;${esc(s.name)}&quot; automatically when Harbor launches at login">
         <span class="knob"></span><span class="switch-label">autostart</span></button>`;
+    const startLabel = status === 'down' ? 'Restart' : 'Start';
     const runBtns = s.running
       ? `${s.managed ? `<button class="danger" data-act="stop" data-name="${esc(s.name)}">Stop</button>` : `<span class="lock" title="Running, but not started by Harbor">running externally</span>`}
          <button class="ghost" data-act="logs" data-name="${esc(s.name)}">Logs</button>`
-      : `<button class="primary" data-act="start" data-name="${esc(s.name)}">Start</button>
+      : `<button class="primary" data-act="start" data-name="${esc(s.name)}">${startLabel}</button>
          <button class="ghost" data-act="logs" data-name="${esc(s.name)}">Logs</button>`;
     const actions = autostart + runBtns;
     return `<div class="row ${kind}">
@@ -316,6 +359,11 @@ function rowHtml(l) {
   const editBtn = l.annoKey
     ? `<button class="ghost icon" data-act="edit" data-key="${esc(l.annoKey)}" data-label="${esc(l.label || l.name)}" data-cname="${esc(l.customName || '')}" data-desc="${esc(l.description || '')}" title="Rename / describe">✎</button>`
     : '';
+  // Promote to a managed service — only when it isn't already a known service and it has a working
+  // dir to start from (so Harbor can Start/Stop/autostart it and flag it when it goes down).
+  const promoteBtn = (l.kind !== 'known' && l.cwd)
+    ? `<button class="ghost" data-act="promote" data-label="${esc(l.label || l.name)}" data-cwd="${esc(l.cwd)}" data-command="${esc(l.suggestedCommand || l.command || '')}" data-port="${esc(l.ports.join(','))}" title="Manage this as a service (Start/Stop/autostart)">+ Service</button>`
+    : '';
   const action = l.protected
     ? `<span class="lock" title="${esc(l.protectedReason)}">🔒 ${esc(l.protectedReason)}</span>`
     : `<button class="danger" data-act="kill" data-pid="${l.pid}" data-name="${esc(l.label || l.name)}">Kill</button>`;
@@ -326,7 +374,7 @@ function rowHtml(l) {
       <div class="sub">pid ${l.pid} · ${esc(l.command)} ${links}</div>
       ${desc}
     </div>
-    <div class="actions">${editBtn}${action}</div>
+    <div class="actions">${promoteBtn}${editBtn}${action}</div>
   </div>`;
 }
 
@@ -344,7 +392,8 @@ function renderPorts(listeners) {
     const items = buckets.get(g.key);
     if (!items || !items.length) continue;
     const isCollapsed = collapsed.has(g.key);
-    html += `<div class="group ${isCollapsed ? 'collapsed' : ''}" data-group="${g.key}">
+    // Each category is its own collapsible card.
+    html += `<div class="card group ${isCollapsed ? 'collapsed' : ''}" data-group="${g.key}">
       <button class="group-head" data-toggle="${g.key}" aria-expanded="${!isCollapsed}">
         <span class="chevron">▾</span>
         <span class="dot ${g.tone}"></span>
@@ -420,6 +469,7 @@ document.addEventListener('click', (e) => {
   else if (act === 'logs') showLogs(name);
   else if (act === 'autostart') toggleAutostart(name, btn.dataset.enabled === '1');
   else if (act === 'edit') openEditModal(btn.dataset);
+  else if (act === 'promote') openPromoteModal(btn.dataset);
 });
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') closeModal();

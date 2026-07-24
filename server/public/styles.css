@@ -160,15 +160,17 @@ h2.section { font-size: var(--t-lg); margin: var(--s-6) 0 var(--s-3); letter-spa
 .row.sys  { box-shadow: inset 3px 0 0 var(--idle); }
 .row.tool { box-shadow: inset 3px 0 0 var(--idle); }
 
-/* collapsible category groups */
-.group { border-top: 1px solid var(--border); }
-.group:first-child { border-top: none; }
+/* vertical stack of category cards */
+.stack { display: flex; flex-direction: column; gap: var(--s-3); }
+
+/* collapsible category groups — each is its own .card */
 .group-head {
   display: flex; align-items: center; gap: var(--s-2); width: 100%;
-  padding: var(--s-2) var(--s-4); background: var(--surface-2);
+  padding: var(--s-3) var(--s-4); background: var(--surface-2);
   border: none; border-radius: 0; cursor: pointer; text-align: left;
-  font-weight: 600; font-size: var(--t-sm); color: var(--text);
+  font-weight: 700; font-size: var(--t-sm); color: var(--text);
 }
+.group.collapsed .group-head { border-bottom: none; }
 .group-head:hover { background: var(--hover); }
 .group-head:focus-visible { outline: none; box-shadow: var(--focus); }
 .group-head .chevron { color: var(--text-3); font-size: 11px; transition: transform .15s; width: 12px; }

@@ -15,7 +15,7 @@ rediscovering something. Add to it the moment something surprises you.
   - `safety.js` — the pure "is this killable?" rule.
   - `tailscale.js`, `auth.js`, `webauthn.js` — tailnet host, token boundary, Touch ID.
 - **Deterministic core is unit-tested** (`npm test`): lsof parsing, port matching, config
-  validation, re-adoption, safety classification, auth origin/loopback logic. 34 tests.
+  validation, re-adoption, safety classification, auth origin/loopback logic. 36 tests.
 
 ## The three expensive-to-reverse decisions (as built)
 
@@ -113,6 +113,18 @@ Frontend is static (`server/public/`), no build step. `index.html` contains a `_
 placeholder the server fills in for loopback requests only. If you rename that placeholder, update
 `server.js`'s `/` route.
 
+- **Promote a listener → service; "needs restart" is session state.** `POST /api/services`
+  appends via `servicesLib.addService` (validates, refuses duplicate names, sole appender of
+  `services.json`). The suggested start command comes from `ports.suggestStartCommand` reading the
+  cwd's `package.json` (dev → start → serve → raw command). Service `status` in `/api/state` is
+  `running | down | stopped`: **down** = not listening but either a PID file exists (Harbor started
+  it and it died) OR it's in the in-memory `everSeenRunning` set (seen listening earlier this
+  session, e.g. an externally-started service that dropped). A deliberate Stop clears `everSeenRunning`
+  so it reads `stopped`, not `down`. The set resets on Harbor restart — so "needs restart" is a
+  best-effort within-session signal, not persisted. Verified live: running → (kill -9) down →
+  (restart) running → (Stop) stopped.
+- **Layout: ports above services; each category is its own collapsible `.card`.** `renderPorts`
+  emits one `card group` per category into the `#portsCard` `.stack`; Known services render below.
 - **Rename/describe annotations are keyed by cwd (fallback port), in `data/annotations.json`.**
   `annotations.js` is the sole writer of that file (git-ignored user state). `keyFor` returns
   `cwd:<dir>` when the listener has a working directory, else `port:<n>` — so a custom name follows
@@ -131,7 +143,7 @@ placeholder the server fills in for loopback requests only. If you rename that p
 
 ## Verified (measurements, not expectations)
 
-- `npm test`: 34/34 pass.
+- `npm test`: 36/36 pass.
 - Auth: mutation w/o token → 401; non-loopback read w/o token → 401; with token → 200;
   cross-site Origin → 403.
 - Start/Stop/Kill and force-kill exercised live (API + real UI clicks); ports freed, PID files

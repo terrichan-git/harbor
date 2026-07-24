@@ -1,7 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { parseLsof, parseAddress, parsePsCommands, commandToName, mergeListeners, parseLsofCwd, projectLabel } = require('../server/lib/ports');
+const { parseLsof, parseAddress, parsePsCommands, commandToName, mergeListeners, parseLsofCwd, projectLabel, suggestStartCommand } = require('../server/lib/ports');
 
 test('parseAddress handles ipv4, wildcard, and bracketed ipv6', () => {
   assert.deepStrictEqual(parseAddress('127.0.0.1:5432'), { address: '127.0.0.1', port: 5432 });
@@ -77,4 +77,10 @@ test('projectLabel returns null for uninformative cwds so the generic name is ke
   assert.strictEqual(projectLabel(home, null, home), null); // home dir
   assert.strictEqual(projectLabel('/', null, home), null);  // root
   assert.strictEqual(projectLabel(null, null, home), null); // unknown
+});
+
+test('suggestStartCommand prefers npm scripts over the raw runtime command', () => {
+  assert.strictEqual(suggestStartCommand({ dev: 'vite' }, '/usr/local/bin/node x'), 'npm run dev');
+  assert.strictEqual(suggestStartCommand({ start: 'node .' }, 'node x'), 'npm start');
+  assert.strictEqual(suggestStartCommand({}, '/usr/local/bin/node server.js'), '/usr/local/bin/node server.js');
 });
