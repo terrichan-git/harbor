@@ -15,7 +15,7 @@ rediscovering something. Add to it the moment something surprises you.
   - `safety.js` — the pure "is this killable?" rule.
   - `tailscale.js`, `auth.js`, `webauthn.js` — tailnet host, token boundary, Touch ID.
 - **Deterministic core is unit-tested** (`npm test`): lsof parsing, port matching, config
-  validation, re-adoption, safety classification, auth origin/loopback logic. 22 tests.
+  validation, re-adoption, safety classification, auth origin/loopback logic. 26 tests.
 
 ## The three expensive-to-reverse decisions (as built)
 
@@ -76,6 +76,26 @@ rediscovering something. Add to it the moment something surprises you.
   token, back up `data/token` and `data/webauthn.json` separately. Deleting `data/` resets the
   token (phones must re-open the new tokenized URL) and un-enrolls Touch ID.
 
+## Autostart & name enrichment (added after v1)
+
+- **Autostart toggle writes `services.json`.** `POST /api/services/:name/autostart` flips the flag
+  via `servicesLib.setAutostart` (the *only* writer of that file). It re-serialises with
+  `JSON.stringify(…, 2)`, so the file is **reformatted to canonical JSON** (inline arrays expand to
+  multi-line). Values are preserved; formatting is not. The committed `services.json` is already in
+  canonical form so toggles produce minimal diffs. `setAutostart` takes an optional `filePath` so
+  the write path is unit-tested against a throwaway copy (`test/services.test.js`).
+- **Autostart runs at every Harbor launch, not just login.** `reconcileOnStartup` starts any
+  `autostart:true` service not already listening on its port. It's idempotent across KeepAlive
+  relaunches (a re-adopted / already-up service is skipped). Consequence: if you manually Stop an
+  autostart service and Harbor later restarts (crash + KeepAlive), it comes back. Intended for a
+  "always want this up" flag; note it if it surprises you.
+- **Listener names are enriched from the working directory.** `ports.listListeners` runs a second
+  batched `lsof -a -d cwd` to get each pid's cwd, then `projectLabel` derives a friendly name:
+  `package.json` "name" (scope stripped) → else cwd basename → else the generic process name.
+  `readPkgName` reads `<cwd>/package.json` on each refresh (cheap for ~a dozen listeners; add an
+  mtime cache if listener counts ever explode). cwd `/` or the home dir are treated as
+  uninformative so the generic name ("ControlCenter") is kept.
+
 ## Frontend note
 
 Frontend is static (`server/public/`), no build step. `index.html` contains a `__HARBOR_TOKEN__`
@@ -84,7 +104,7 @@ placeholder the server fills in for loopback requests only. If you rename that p
 
 ## Verified (measurements, not expectations)
 
-- `npm test`: 22/22 pass.
+- `npm test`: 26/26 pass.
 - Auth: mutation w/o token → 401; non-loopback read w/o token → 401; with token → 200;
   cross-site Origin → 403.
 - Start/Stop/Kill and force-kill exercised live (API + real UI clicks); ports freed, PID files

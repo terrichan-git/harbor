@@ -11,6 +11,9 @@
 // actually shelling out (the trust boundary where a format change would bite silently).
 
 const { execFile } = require('child_process');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
 
 const LSOF = '/usr/sbin/lsof';
 const PS = '/bin/ps';
@@ -90,6 +93,45 @@ function commandToName(command, fallback) {
   return base || fallback || 'unknown';
 }
 
+// Parse `lsof -a -d cwd -Fpn -p <csv>` into { pid -> cwd }. Each process contributes a `p<pid>`
+// line followed by an `n<path>` line (its one cwd, because we filtered to -d cwd).
+function parseLsofCwd(output) {
+  const map = new Map();
+  let pid = null;
+  for (const line of output.split('\n')) {
+    if (!line) continue;
+    if (line[0] === 'p') pid = Number(line.slice(1));
+    else if (line[0] === 'n' && pid != null) map.set(pid, line.slice(1));
+  }
+  return map;
+}
+
+// Turn a process's working directory (and its package.json name, if any) into a friendly project
+// label — so five `node` servers read as "Jumpr", "my-api", … instead of all saying "node".
+// Prefers the package.json "name" (scope stripped: "@acme/jumpr" -> "jumpr"); falls back to the
+// cwd's basename. Returns null for uninformative cwds (home dir or /), so the caller keeps the
+// generic process name in that case.
+function projectLabel(cwd, pkgName, homeDir) {
+  if (pkgName && typeof pkgName === 'string') {
+    const base = pkgName.split('/').pop();
+    if (base) return base;
+  }
+  if (!cwd || cwd === '/' || cwd === homeDir) return null;
+  const base = path.basename(cwd);
+  return base || null;
+}
+
+// Read the "name" field from <cwd>/package.json, or null. Best-effort — most dev servers run from
+// their project root, so this catches the common case without walking the tree.
+function readPkgName(cwd) {
+  try {
+    const pkg = JSON.parse(fs.readFileSync(path.join(cwd, 'package.json'), 'utf8'));
+    return typeof pkg.name === 'string' ? pkg.name : null;
+  } catch {
+    return null;
+  }
+}
+
 // Collapse per-socket lsof rows + ps commands into one record per pid, with a ports[] list.
 function mergeListeners(lsofRows, psCommands) {
   const byPid = new Map();
@@ -120,17 +162,34 @@ function mergeListeners(lsofRows, psCommands) {
   return out;
 }
 
-// Live query: returns the merged listener records described above.
+// Live query: returns the merged listener records, each enriched with cwd + project label.
 async function listListeners() {
   const lsofOut = await run(LSOF, ['-nP', '-iTCP', '-sTCP:LISTEN', '-F', 'pcuLn']);
   const rows = parseLsof(lsofOut);
   const pids = [...new Set(rows.map((r) => r.pid))];
   let psCommands = new Map();
+  let cwdByPid = new Map();
   if (pids.length) {
-    const psOut = await run(PS, ['-o', 'pid=,command=', '-p', pids.join(',')]);
+    // Two batched lookups over the same pid set: full commands, and working directories.
+    const [psOut, cwdOut] = await Promise.all([
+      run(PS, ['-o', 'pid=,command=', '-p', pids.join(',')]),
+      run(LSOF, ['-a', '-d', 'cwd', '-Fpn', '-p', pids.join(',')]),
+    ]);
     psCommands = parsePsCommands(psOut);
+    cwdByPid = parseLsofCwd(cwdOut);
   }
-  return mergeListeners(rows, psCommands);
+  const merged = mergeListeners(rows, psCommands);
+  const home = os.homedir();
+  for (const rec of merged) {
+    const cwd = cwdByPid.get(rec.pid) || null;
+    const project = projectLabel(cwd, cwd ? readPkgName(cwd) : null, home);
+    rec.cwd = cwd;
+    rec.project = project;
+    // label is what the UI shows as the primary identifier; project when we found one, else the
+    // generic process name ("node"). name is kept alongside so the UI can show both.
+    rec.label = project || rec.name;
+  }
+  return merged;
 }
 
 module.exports = {
@@ -141,4 +200,6 @@ module.exports = {
   parsePsCommands,
   commandToName,
   mergeListeners,
+  parseLsofCwd,
+  projectLabel,
 };

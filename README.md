@@ -11,7 +11,10 @@ open any dev server from your phone. One Node process, no database, no cloud.
 - **Lists TCP listeners** (`lsof` + `ps`) with process name, PID, port(s), and the full launch command.
 - **Kill** any process you own, with a **force `kill -9`** step that only fires after you confirm.
 - **Known services** defined in [`services.json`](services.json): Start ones that are stopped,
-  Stop ones that are running. Matched to live processes **by port**.
+  Stop ones that are running, and flip **autostart** per service from the UI. Matched to live
+  processes **by port**.
+- **Readable names**: each listener is labelled by its project (from its working directory /
+  `package.json` name), so five `node` servers read as `jumpr-local`, `my-api`, … not all "node".
 - **Survive & re-adopt**: services Harbor starts keep running if Harbor restarts/crashes, and get
   re-attached on the next launch.
 - **Tailscale links**: per-port `http://<machine>.<tailnet>.ts.net:<port>` you can copy in one click,
@@ -50,7 +53,9 @@ Edit [`services.json`](services.json). Each entry:
 ```
 
 - `port` may be a single number or an array (`[4000, 4001]`) for multi-port services.
-- `autostart: true` starts the service when Harbor launches at login (default `false`).
+- `autostart: true` starts the service when Harbor launches at login (default `false`). You can
+  flip this from the UI with the **autostart** toggle on each service — it writes `services.json`
+  for you (and reformats it to canonical JSON).
 - `cwd` may use `~`. The command runs through your shell in that directory.
 
 Hit **Refresh** (or the list auto-refreshes every 4s) to pick up changes.

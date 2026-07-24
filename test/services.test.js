@@ -1,7 +1,10 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { validate, match, normalisePorts } = require('../server/lib/services');
+const { validate, match, normalisePorts, setAutostart } = require('../server/lib/services');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
 
 test('normalisePorts accepts number or array', () => {
   assert.deepStrictEqual(normalisePorts(3000), [3000]);
@@ -30,6 +33,31 @@ test('validate normalises good services and reports bad ones without dropping th
 test('validate rejects malformed top-level shapes', () => {
   assert.match(validate(null).errors[0], /not an object/);
   assert.match(validate({}).errors[0], /"services" array/);
+});
+
+test('setAutostart flips only the target flag and preserves the rest of the file', () => {
+  // Write path tested against a THROWAWAY copy — never the real services.json.
+  const tmp = path.join(os.tmpdir(), `harbor-svc-${process.pid}.json`);
+  fs.writeFileSync(tmp, JSON.stringify({
+    $comment: 'keep me',
+    services: [
+      { name: 'web', cwd: '~/x', command: 'c', port: 3000, autostart: false },
+      { name: 'api', cwd: '~/y', command: 'c', port: 8080, autostart: false },
+    ],
+  }, null, 2));
+  try {
+    const r = setAutostart('api', true, tmp);
+    assert.strictEqual(r.ok, true);
+    assert.strictEqual(r.autostart, true);
+    const after = JSON.parse(fs.readFileSync(tmp, 'utf8'));
+    assert.strictEqual(after.$comment, 'keep me');           // untouched
+    assert.strictEqual(after.services[0].autostart, false);  // web untouched
+    assert.strictEqual(after.services[1].autostart, true);   // api flipped
+    // unknown service is a clean error, file unchanged
+    assert.strictEqual(setAutostart('nope', true, tmp).ok, false);
+  } finally {
+    fs.rmSync(tmp, { force: true }); // leave no test data behind
+  }
 });
 
 test('match flags a service running when any declared port has a listener', () => {

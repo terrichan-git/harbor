@@ -71,6 +71,31 @@ function normalisePorts(port) {
   return Array.isArray(port) ? port.map(Number) : [Number(port)];
 }
 
+// Flip a service's autostart flag in services.json, in place. Reads the RAW file (so the $comment
+// and any other fields are preserved), sets the one boolean, writes back with 2-space indent.
+// This is the only path that writes services.json — the config stays hand-editable, we just poke
+// this one flag from the UI. Returns { ok } or { ok:false, error }.
+function setAutostart(name, enabled, filePath = PATHS.SERVICES_JSON) {
+  let raw;
+  try {
+    raw = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  } catch (err) {
+    return { ok: false, error: `Could not read services.json: ${err.message}` };
+  }
+  if (!raw || !Array.isArray(raw.services)) {
+    return { ok: false, error: 'services.json has no "services" array' };
+  }
+  const svc = raw.services.find((s) => s && s.name === name);
+  if (!svc) return { ok: false, error: `unknown service "${name}"` };
+  svc.autostart = enabled === true;
+  try {
+    fs.writeFileSync(filePath, JSON.stringify(raw, null, 2) + '\n');
+  } catch (err) {
+    return { ok: false, error: `Could not write services.json: ${err.message}` };
+  }
+  return { ok: true, autostart: svc.autostart };
+}
+
 // Load + validate from disk. Missing file is not fatal — you may not have defined services yet.
 function load() {
   let raw;
@@ -119,4 +144,4 @@ function match(services, listeners) {
   return { serviceStates, portToService };
 }
 
-module.exports = { validate, load, match, normalisePorts };
+module.exports = { validate, load, match, normalisePorts, setAutostart };

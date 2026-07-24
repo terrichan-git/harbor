@@ -34,23 +34,41 @@ reconcileOnStartup();
 // unit-tested pure function; here we just apply it: keep the live ones, delete stale PID files.
 // Identity is verified by port (see registry.reconcile) using a live lsof snapshot.
 async function reconcileOnStartup() {
-  const records = registry.readAll();
-  if (!records.length) return;
-  let pidPorts = new Map();
+  // One live snapshot reused for both re-adoption and autostart.
+  let listeners = [];
   try {
-    const listeners = await ports.listListeners();
-    pidPorts = new Map(listeners.map((l) => [l.pid, l.ports]));
+    listeners = await ports.listListeners();
   } catch {
-    /* lsof unavailable — reconcile falls back to trusting liveness */
+    /* lsof unavailable — reconcile falls back to trusting liveness; autostart is skipped */
   }
-  const { adopt, stale } = registry.reconcile(records, {
-    isAlive: registry.isAlive,
-    // null when we have no lsof snapshot at all, so reconcile trusts liveness instead of disowning.
-    portsOf: (pid) => (pidPorts.size ? pidPorts.get(pid) || [] : null),
-  });
-  for (const s of stale) registry.remove(s.name);
-  if (adopt.length) console.log(`[harbor] re-adopted ${adopt.length} running service(s): ${adopt.map((a) => a.name).join(', ')}`);
-  if (stale.length) console.log(`[harbor] cleaned ${stale.length} stale PID file(s)`);
+  const pidPorts = new Map(listeners.map((l) => [l.pid, l.ports]));
+  const listeningPorts = new Set(listeners.flatMap((l) => l.ports));
+
+  const records = registry.readAll();
+  if (records.length) {
+    const { adopt, stale } = registry.reconcile(records, {
+      isAlive: registry.isAlive,
+      // null when we have no lsof snapshot at all, so reconcile trusts liveness instead of disowning.
+      portsOf: (pid) => (pidPorts.size ? pidPorts.get(pid) || [] : null),
+    });
+    for (const s of stale) registry.remove(s.name);
+    if (adopt.length) console.log(`[harbor] re-adopted ${adopt.length} running service(s): ${adopt.map((a) => a.name).join(', ')}`);
+    if (stale.length) console.log(`[harbor] cleaned ${stale.length} stale PID file(s)`);
+  }
+
+  // Autostart: start any service flagged autostart:true that isn't already listening on its port.
+  // Idempotent across KeepAlive relaunches — a service already up (or just re-adopted) is skipped.
+  const { services } = servicesLib.load();
+  for (const svc of services) {
+    if (!svc.autostart) continue;
+    if (svc.ports.some((p) => listeningPorts.has(p))) continue;
+    try {
+      const rec = processes.startService(svc);
+      console.log(`[harbor] autostarted "${svc.name}" (pid ${rec.pid})`);
+    } catch (err) {
+      console.log(`[harbor] autostart of "${svc.name}" failed: ${err.message}`);
+    }
+  }
 }
 
 // ---- static frontend --------------------------------------------------------
@@ -150,6 +168,16 @@ app.post('/api/kill', destructive, async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: String(err.message || err) });
   }
+});
+
+// Toggle a service's autostart flag (writes services.json). Token-gated; not destructive, so no
+// Touch ID gate. Autostart takes effect at the next Harbor launch — starting it now is a separate
+// Start click, so the toggle is never a surprise process spawn.
+app.post('/api/services/:name/autostart', mutate, (req, res) => {
+  const enabled = req.body && req.body.enabled === true;
+  const result = servicesLib.setAutostart(req.params.name, enabled);
+  if (!result.ok) return res.status(400).json({ error: result.error });
+  res.json({ autostart: result.autostart });
 });
 
 app.post('/api/services/:name/start', mutate, (req, res) => {

@@ -146,6 +146,11 @@ h2.section { font-size: var(--t-lg); margin: var(--s-6) 0 var(--s-3); letter-spa
   padding: 2px 8px; border-radius: var(--r-sm);
   background: var(--surface-2); border: 1px solid var(--border); color: var(--text-2);
 }
+.proc-tag {
+  font-family: var(--mono); font-size: 11px; font-weight: 500;
+  padding: 1px 6px; border-radius: var(--r-sm);
+  background: var(--surface-2); border: 1px solid var(--border); color: var(--text-3);
+}
 
 /* ---- buttons ---- */
 button {
@@ -165,6 +170,26 @@ button.ghost { border-color: transparent; background: transparent; color: var(--
 button.ghost:hover { background: var(--surface-2); }
 button.icon { padding: 6px 8px; }
 .lock { color: var(--text-3); font-size: var(--t-xs); display: inline-flex; align-items: center; gap: 4px; }
+
+/* autostart toggle switch */
+.switch {
+  display: inline-flex; align-items: center; gap: var(--s-2);
+  padding: 5px 10px 5px 6px; border-radius: var(--r-full);
+  border: 1px solid var(--border-strong); background: var(--surface);
+}
+.switch .knob {
+  position: relative; width: 30px; height: 17px; border-radius: var(--r-full);
+  background: var(--n-300); transition: background .14s; flex: none;
+}
+.switch .knob::after {
+  content: ''; position: absolute; top: 2px; left: 2px; width: 13px; height: 13px;
+  border-radius: var(--r-full); background: #fff; box-shadow: var(--shadow-1); transition: transform .14s;
+}
+.switch.on { border-color: var(--accent); }
+.switch.on .knob { background: var(--accent); }
+.switch.on .knob::after { transform: translateX(13px); }
+.switch .switch-label { font-size: var(--t-xs); color: var(--text-2); font-weight: 600; }
+.switch.on .switch-label { color: var(--accent-strong); }
 
 /* copy link */
 .copy {

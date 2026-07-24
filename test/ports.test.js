@@ -1,7 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { parseLsof, parseAddress, parsePsCommands, commandToName, mergeListeners } = require('../server/lib/ports');
+const { parseLsof, parseAddress, parsePsCommands, commandToName, mergeListeners, parseLsofCwd, projectLabel } = require('../server/lib/ports');
 
 test('parseAddress handles ipv4, wildcard, and bracketed ipv6', () => {
   assert.deepStrictEqual(parseAddress('127.0.0.1:5432'), { address: '127.0.0.1', port: 5432 });
@@ -56,4 +56,25 @@ test('mergeListeners tolerates a pid that ps did not return (exited between call
   const merged = mergeListeners(rows, new Map());
   assert.strictEqual(merged[0].name, 'ghost'); // falls back to lsof comm
   assert.match(merged[0].command, /unavailable/);
+});
+
+test('parseLsofCwd maps pid to working directory', () => {
+  const out = ['p71201', 'n/Users/terri/Projects/Jumpr', 'p40716', 'n/Users/terri/my-api'].join('\n');
+  const map = parseLsofCwd(out);
+  assert.strictEqual(map.get(71201), '/Users/terri/Projects/Jumpr');
+  assert.strictEqual(map.get(40716), '/Users/terri/my-api');
+});
+
+test('projectLabel prefers package.json name (scope stripped), else cwd basename', () => {
+  const home = '/Users/terri';
+  assert.strictEqual(projectLabel('/Users/terri/Projects/Jumpr', null, home), 'Jumpr');
+  assert.strictEqual(projectLabel('/Users/terri/x', '@acme/jumpr', home), 'jumpr'); // pkg name wins, scope stripped
+  assert.strictEqual(projectLabel('/Users/terri/x', 'my-api', home), 'my-api');
+});
+
+test('projectLabel returns null for uninformative cwds so the generic name is kept', () => {
+  const home = '/Users/terri';
+  assert.strictEqual(projectLabel(home, null, home), null); // home dir
+  assert.strictEqual(projectLabel('/', null, home), null);  // root
+  assert.strictEqual(projectLabel(null, null, home), null); // unknown
 });

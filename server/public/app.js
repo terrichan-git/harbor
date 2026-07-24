@@ -156,6 +156,13 @@ async function startService(name) {
   try { await api(`/api/services/${encodeURIComponent(name)}/start`, { method: 'POST', body: '{}' }); toast(`Starting ${name}…`); setTimeout(load, 600); }
   catch (err) { toast('Start failed: ' + err.message); }
 }
+async function toggleAutostart(name, current) {
+  try {
+    const r = await api(`/api/services/${encodeURIComponent(name)}/autostart`, { method: 'POST', body: JSON.stringify({ enabled: !current }) });
+    toast(`${name}: autostart ${r.autostart ? 'on' : 'off'}`);
+    load();
+  } catch (err) { toast('Autostart toggle failed: ' + err.message); }
+}
 async function stopService(name) {
   try {
     const r = await withTouchId(() => api(`/api/services/${encodeURIComponent(name)}/stop`, { method: 'POST', body: '{}' }));
@@ -215,11 +222,17 @@ function renderServices(services) {
     const label = s.running ? 'running' : 'stopped';
     const ports = s.ports.map((p) => `<span class="port-chip">:${p}</span>`).join(' ');
     const links = s.running ? s.ports.map((p) => tailLink(p)).filter(Boolean).map(copyChip).join(' ') : '';
-    const actions = s.running
+    // autostart toggle — persisted to services.json; takes effect at Harbor's next launch.
+    const autostart = `<button class="switch ${s.autostart ? 'on' : ''}" role="switch" aria-checked="${s.autostart}"
+        data-act="autostart" data-name="${esc(s.name)}" data-enabled="${s.autostart ? '1' : '0'}"
+        title="Start &quot;${esc(s.name)}&quot; automatically when Harbor launches at login">
+        <span class="knob"></span><span class="switch-label">autostart</span></button>`;
+    const runBtns = s.running
       ? `${s.managed ? `<button class="danger" data-act="stop" data-name="${esc(s.name)}">Stop</button>` : `<span class="lock" title="Running, but not started by Harbor">running externally</span>`}
          <button class="ghost" data-act="logs" data-name="${esc(s.name)}">Logs</button>`
       : `<button class="primary" data-act="start" data-name="${esc(s.name)}">Start</button>
          <button class="ghost" data-act="logs" data-name="${esc(s.name)}">Logs</button>`;
+    const actions = autostart + runBtns;
     return `<div class="row ${kind}">
       <span class="dot ${kind}"></span>
       <div class="main">
@@ -241,13 +254,16 @@ function renderPorts(listeners) {
     const badge = l.kind === 'known'
       ? `<span class="kind ok">${esc(l.serviceName)}</span>`
       : `<span class="kind warn">rogue</span>`;
+    // Primary label is the enriched project name; show the generic process name as a small tag
+    // when it differs (e.g. "Jumpr" with a "node" tag), so identity and runtime are both visible.
+    const procTag = l.label && l.name && l.label !== l.name ? `<span class="proc-tag">${esc(l.name)}</span>` : '';
     const action = l.protected
       ? `<span class="lock" title="${esc(l.protectedReason)}">🔒 ${esc(l.protectedReason)}</span>`
-      : `<button class="danger" data-act="kill" data-pid="${l.pid}" data-name="${esc(l.name)}">Kill</button>`;
+      : `<button class="danger" data-act="kill" data-pid="${l.pid}" data-name="${esc(l.label || l.name)}">Kill</button>`;
     return `<div class="row ${kind}">
       <span class="dot ${kind}"></span>
       <div class="main">
-        <div class="name">${esc(l.name)} ${badge} ${ports}</div>
+        <div class="name">${esc(l.label || l.name)} ${procTag} ${badge} ${ports}</div>
         <div class="sub">pid ${l.pid} · ${esc(l.command)} ${links}</div>
       </div>
       <div class="actions">${action}</div>
@@ -302,6 +318,7 @@ document.addEventListener('click', (e) => {
   else if (act === 'start') startService(name);
   else if (act === 'stop') stopService(name);
   else if (act === 'logs') showLogs(name);
+  else if (act === 'autostart') toggleAutostart(name, btn.dataset.enabled === '1');
 });
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') closeModal();
