@@ -313,7 +313,8 @@ function renderSelf(state) {
       <span class="dot ok"></span>
       <div class="main">
         <div class="name">⚓ Harbor <span class="kind ok">this app</span> ${ports}</div>
-        <div class="sub">pid ${self.pid} · kept alive by launchd (starts at login) ${links}</div>
+        <div class="sub">pid ${self.pid} · kept alive by launchd (starts at login)</div>
+        ${links ? `<div class="links">${links}</div>` : ''}
       </div>
       <div class="actions"><span class="muted">not manageable here</span></div>
     </div>
@@ -350,7 +351,8 @@ function serviceRowHtml(s) {
     <span class="dot ${kind}"></span>
     <div class="main">
       <div class="name">${esc(display)} ${idTag} <span class="kind ${kind}">${label}</span> ${ports}</div>
-      <div class="sub">${esc(s.command)}${s.pid ? ` · pid ${s.pid}` : ''} ${links}</div>
+      <div class="sub">${esc(s.command)}${s.pid ? ` · pid ${s.pid}` : ''}</div>
+      ${links ? `<div class="links">${links}</div>` : ''}
       ${desc}
     </div>
     <div class="actions">${editBtn}${autostart}${runBtns}${demoteBtn}</div>
@@ -453,7 +455,8 @@ function rowHtml(l) {
     <span class="dot ${meta.tone}"></span>
     <div class="main">
       <div class="name">${esc(l.label || l.name)} ${procTag} ${badge} ${ports}</div>
-      <div class="sub">pid ${l.pid} · ${esc(l.command)} ${links}</div>
+      <div class="sub">pid ${l.pid} · ${esc(l.command)}</div>
+      ${links ? `<div class="links">${links}</div>` : ''}
       ${desc}
     </div>
     <div class="actions">${promoteBtn}${editBtn}${action}</div>

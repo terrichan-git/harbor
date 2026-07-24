@@ -128,6 +128,8 @@ h2.section { font-size: var(--t-lg); margin: var(--s-6) 0 var(--s-3); letter-spa
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .row .desc { color: var(--text-2); font-size: var(--t-xs); font-style: italic; margin-top: 3px;
   white-space: normal; }
+/* copy links on their own line so they're never clipped by the nowrap .sub ellipsis */
+.row .links { margin-top: 5px; display: flex; flex-wrap: wrap; gap: 6px; }
 .row .actions { display: flex; gap: var(--s-2); align-items: center; }
 
 /* status dot + kind */
