@@ -113,6 +113,13 @@ Frontend is static (`server/public/`), no build step. `index.html` contains a `_
 placeholder the server fills in for loopback requests only. If you rename that placeholder, update
 `server.js`'s `/` route.
 
+- **Listening ports are grouped by category with collapsible sections.** `renderPorts` buckets by
+  `groupKeyFor` (known service → 'known', else the classifier category) into `PORT_GROUPS` order.
+  Collapsed state lives in `localStorage.harbor_collapsed` and is **re-read on every render** — this
+  matters because the 4s auto-refresh rebuilds `#portsCard` innerHTML, so without persistence a
+  collapsed group would spring open every tick. The toggle handler also flips the DOM directly for
+  snappiness rather than waiting for the next render.
+
 ## Verified (measurements, not expectations)
 
 - `npm test`: 32/32 pass.

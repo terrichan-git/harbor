@@ -258,30 +258,68 @@ function categoryMeta(l) {
   }
 }
 
+// Category groups, in display order. A listener matched to a known service groups under 'known';
+// everything else groups by its classifier category.
+const PORT_GROUPS = [
+  { key: 'known',   label: 'Known services',   tone: 'ok' },
+  { key: 'project', label: 'Your projects',    tone: 'proj' },
+  { key: 'app',     label: 'Installed apps',   tone: 'app' },
+  { key: 'tool',    label: 'Tools & services', tone: 'tool' },
+  { key: 'system',  label: 'System',           tone: 'sys' },
+  { key: 'unknown', label: 'Unrecognized',     tone: 'warn' },
+];
+const groupKeyFor = (l) => (l.kind === 'known' ? 'known' : (l.category || 'unknown'));
+
+// Collapsed groups persist across the 4s auto-refresh (which rebuilds this DOM) — otherwise a
+// collapsed section would spring back open every few seconds.
+const collapsed = new Set(JSON.parse(localStorage.getItem('harbor_collapsed') || '[]'));
+
+function rowHtml(l) {
+  const meta = categoryMeta(l);
+  const ports = l.ports.map((p) => `<span class="port-chip">:${p}</span>`).join(' ');
+  const links = l.ports.map((p) => tailLink(p)).filter(Boolean).map(copyChip).join(' ');
+  const badge = `<span class="kind ${meta.tone}">${meta.badge}</span>`;
+  // Primary label is the enriched name; show the generic process name as a small tag when it
+  // differs (e.g. "Jumpr" with a "node" tag), so identity and runtime are both visible.
+  const procTag = l.label && l.name && l.label !== l.name ? `<span class="proc-tag">${esc(l.name)}</span>` : '';
+  const action = l.protected
+    ? `<span class="lock" title="${esc(l.protectedReason)}">🔒 ${esc(l.protectedReason)}</span>`
+    : `<button class="danger" data-act="kill" data-pid="${l.pid}" data-name="${esc(l.label || l.name)}">Kill</button>`;
+  return `<div class="row ${meta.tone}">
+    <span class="dot ${meta.tone}"></span>
+    <div class="main">
+      <div class="name">${esc(l.label || l.name)} ${procTag} ${badge} ${ports}</div>
+      <div class="sub">pid ${l.pid} · ${esc(l.command)} ${links}</div>
+    </div>
+    <div class="actions">${action}</div>
+  </div>`;
+}
+
 function renderPorts(listeners) {
   const card = $('#portsCard');
   if (!listeners.length) { card.innerHTML = `<div class="empty">Nothing is listening on a TCP port.</div>`; return; }
-  card.innerHTML = listeners.map((l) => {
-    const meta = categoryMeta(l);
-    const kind = meta.tone;
-    const ports = l.ports.map((p) => `<span class="port-chip">:${p}</span>`).join(' ');
-    const links = l.ports.map((p) => tailLink(p)).filter(Boolean).map(copyChip).join(' ');
-    const badge = `<span class="kind ${meta.tone}">${meta.badge}</span>`;
-    // Primary label is the enriched project name; show the generic process name as a small tag
-    // when it differs (e.g. "Jumpr" with a "node" tag), so identity and runtime are both visible.
-    const procTag = l.label && l.name && l.label !== l.name ? `<span class="proc-tag">${esc(l.name)}</span>` : '';
-    const action = l.protected
-      ? `<span class="lock" title="${esc(l.protectedReason)}">🔒 ${esc(l.protectedReason)}</span>`
-      : `<button class="danger" data-act="kill" data-pid="${l.pid}" data-name="${esc(l.label || l.name)}">Kill</button>`;
-    return `<div class="row ${kind}">
-      <span class="dot ${kind}"></span>
-      <div class="main">
-        <div class="name">${esc(l.label || l.name)} ${procTag} ${badge} ${ports}</div>
-        <div class="sub">pid ${l.pid} · ${esc(l.command)} ${links}</div>
-      </div>
-      <div class="actions">${action}</div>
+  const buckets = new Map();
+  for (const l of listeners) {
+    const k = groupKeyFor(l);
+    if (!buckets.has(k)) buckets.set(k, []);
+    buckets.get(k).push(l);
+  }
+  let html = '';
+  for (const g of PORT_GROUPS) {
+    const items = buckets.get(g.key);
+    if (!items || !items.length) continue;
+    const isCollapsed = collapsed.has(g.key);
+    html += `<div class="group ${isCollapsed ? 'collapsed' : ''}" data-group="${g.key}">
+      <button class="group-head" data-toggle="${g.key}" aria-expanded="${!isCollapsed}">
+        <span class="chevron">▾</span>
+        <span class="dot ${g.tone}"></span>
+        <span class="group-title">${g.label}</span>
+        <span class="group-count">${items.length}</span>
+      </button>
+      <div class="group-body"${isCollapsed ? ' hidden' : ''}>${items.map(rowHtml).join('')}</div>
     </div>`;
-  }).join('');
+  }
+  card.innerHTML = html;
 }
 
 function renderBanners(state) {
@@ -324,6 +362,20 @@ function tick() { if (!$('#modalBack').classList.contains('show')) load(); }
 document.addEventListener('click', (e) => {
   const copy = e.target.closest('.copy');
   if (copy) return copyLink(copy, copy.dataset.link);
+  // Collapse/expand a category group. Toggle the DOM directly (snappy) and persist, so the next
+  // auto-refresh render honours it.
+  const head = e.target.closest('button[data-toggle]');
+  if (head) {
+    const k = head.dataset.toggle;
+    if (collapsed.has(k)) collapsed.delete(k); else collapsed.add(k);
+    localStorage.setItem('harbor_collapsed', JSON.stringify([...collapsed]));
+    const grp = head.closest('.group');
+    const nowCollapsed = collapsed.has(k);
+    grp.classList.toggle('collapsed', nowCollapsed);
+    grp.querySelector('.group-body').hidden = nowCollapsed;
+    head.setAttribute('aria-expanded', String(!nowCollapsed));
+    return;
+  }
   const btn = e.target.closest('button[data-act]');
   if (!btn) return;
   const { act, name, pid } = btn.dataset;
