@@ -8,10 +8,12 @@ const url = new URL(location.href);
 let TOKEN = window.HARBOR_TOKEN || '';
 if (url.searchParams.get('token')) {
   TOKEN = url.searchParams.get('token');
-  // localStorage (not session): connect the phone once and it stays connected across app restarts.
   localStorage.setItem('harbor_token', TOKEN);
-  url.searchParams.delete('token'); // don't leave the token in the address bar / history
-  history.replaceState(null, '', url.pathname);
+  // Keep ?token= in the URL on purpose. iOS "Add to Home Screen" captures the CURRENT url as the
+  // web app's launch url, and a home-screen web app has its OWN storage (separate from Safari) that
+  // iOS evicts after ~7 days. Keeping the token in the launch url lets the app re-authenticate on
+  // every cold launch. In standalone mode there's no address bar, so it stays out of sight. The
+  // server also sets a durable HttpOnly cookie (see auth.refreshTokenCookie) as a second layer.
 }
 if (!TOKEN) TOKEN = localStorage.getItem('harbor_token') || sessionStorage.getItem('harbor_token') || '';
 let UNLOCK = sessionStorage.getItem('harbor_unlock') || '';

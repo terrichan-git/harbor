@@ -127,6 +127,28 @@ rediscovering something. Add to it the moment something surprises you.
   `server/public` as-is. So frontend edits show on a browser refresh; only server-code changes need a
   restart, via `npm run restart` (`launchctl kickstart -k`, in `scripts/restart.js`).
 
+## iOS home-screen web app kept logging out (token persistence)
+
+Symptom: a phone added to the home screen ("open as web app") re-prompts for the token after a
+while. Two stacked iOS behaviours, two fixes:
+
+- **iOS evicts `localStorage` after ~7 days** of not opening the site (ITP). The token lived only in
+  `localStorage`, so it vanished. Fix: the server now sets a **durable, first-party, HttpOnly
+  cookie** (`auth.refreshTokenCookie`, `Max-Age` 1yr, `SameSite=Lax`) on any request carrying a
+  valid token, and `presentedToken` accepts it. Server-set first-party cookies are exempt from the
+  7-day cap and ride along on every request automatically — including a cold-launch page load.
+  CSRF is still covered: `SameSite=Lax` isn't sent on cross-site POSTs, and the Origin/Host check on
+  mutations remains (verified: cookie + cross-site Origin → 403).
+- **A home-screen web app has its OWN storage, separate from Safari, and launches at a fixed URL.**
+  So a cookie set while browsing in Safari does NOT carry into the installed app. We therefore
+  **stopped stripping `?token=` from the URL** (`app.js`) — iOS "Add to Home Screen" captures the
+  current URL as the launch URL, so keeping the token there lets the app re-bootstrap (and set its
+  own cookie) on every cold launch. No address bar in standalone mode, so it stays hidden. Trade-off:
+  the token is visible in Safari history on the phone — acceptable for a personal tailnet tool.
+- **To re-connect an already-broken home-screen app:** delete the icon, scan the Connect-phone QR in
+  Safari, and Add to Home Screen *from the tokenized URL* (it's no longer stripped). The new app
+  launches with the token and stays signed in.
+
 ## Frontend note
 
 Frontend is static (`server/public/`), no build step. `index.html` contains a `__HARBOR_TOKEN__`

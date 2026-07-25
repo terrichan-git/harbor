@@ -32,6 +32,9 @@ const everSeenRunning = new Set();
 
 const app = express();
 app.use(express.json());
+// Bootstrap/refresh the durable auth cookie on any request that carries a valid token. This is what
+// keeps a phone's home-screen web app signed in past iOS's ~7-day localStorage eviction.
+app.use(auth.refreshTokenCookie());
 
 // ---- startup: token + re-adopt anything still running -----------------------
 auth.getOrCreateToken();

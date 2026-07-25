@@ -51,8 +51,43 @@ function isLoopback(req) {
 // A request presents the token via the x-harbor-token header (preferred) or ?token= query
 // (used once when you first open the tailnet URL on your phone; the page then stores it and
 // switches to the header).
+// Read one cookie value from a raw Cookie header ("a=1; harbor_token=abc; b=2").
+function parseCookie(cookieHeader, name) {
+  if (!cookieHeader) return null;
+  for (const part of cookieHeader.split(';')) {
+    const i = part.indexOf('=');
+    if (i === -1) continue;
+    if (part.slice(0, i).trim() === name) {
+      const v = part.slice(i + 1).trim();
+      try { return decodeURIComponent(v); } catch { return v; }
+    }
+  }
+  return null;
+}
+
+// A request presents the token via the x-harbor-token header, a ?token= query (first phone open),
+// OR a durable cookie. The cookie is what keeps a home-screen web app signed in: iOS evicts
+// localStorage after ~7 days, but a server-set first-party cookie survives and rides along on every
+// request automatically — including the app's cold-launch page load.
 function presentedToken(req) {
-  return req.get('x-harbor-token') || (req.query && req.query.token) || null;
+  return req.get('x-harbor-token') || (req.query && req.query.token) || parseCookie(req.get('cookie'), 'harbor_token') || null;
+}
+
+const COOKIE_MAX_AGE = 60 * 60 * 24 * 365; // 1 year
+
+// Middleware: whenever a request carries a VALID token (by any means), (re)set the durable cookie.
+// Server-set + first-party + HttpOnly, so it dodges iOS's localStorage eviction and can't be read
+// by page scripts. Not `Secure` because Harbor is served over plain HTTP (localhost + the tailnet).
+// SameSite=Lax + the existing Origin check (below) keep it safe from CSRF: the cookie is not sent on
+// cross-site POSTs, so a malicious page still can't drive a mutation.
+function refreshTokenCookie() {
+  return (req, res, next) => {
+    const t = presentedToken(req);
+    if (t && tokenValid(t)) {
+      res.setHeader('Set-Cookie', `harbor_token=${encodeURIComponent(t)}; Max-Age=${COOKIE_MAX_AGE}; Path=/; SameSite=Lax; HttpOnly`);
+    }
+    next();
+  };
 }
 
 // Reject cross-site requests to mutating routes. A browser sends Origin on cross-origin POSTs;
@@ -98,7 +133,9 @@ module.exports = {
   tokenValid,
   isLoopback,
   presentedToken,
+  parseCookie,
   sameSiteOrigin,
+  refreshTokenCookie,
   requireForMutation,
   requireForRead,
 };

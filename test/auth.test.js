@@ -25,8 +25,18 @@ test('sameSiteOrigin allows same host and no-origin, rejects cross-site', () => 
   assert.strictEqual(auth.sameSiteOrigin(req({ headers: { host: 'localhost:7070', origin: 'http://evil.example' } })), false);
 });
 
-test('presentedToken reads header first, then query', () => {
+test('presentedToken reads header first, then query, then cookie', () => {
   assert.strictEqual(auth.presentedToken(req({ headers: { 'x-harbor-token': 'H' } })), 'H');
   assert.strictEqual(auth.presentedToken(req({ query: { token: 'Q' } })), 'Q');
+  assert.strictEqual(auth.presentedToken(req({ headers: { cookie: 'harbor_token=C' } })), 'C');
+  // header wins over cookie
+  assert.strictEqual(auth.presentedToken(req({ headers: { 'x-harbor-token': 'H', cookie: 'harbor_token=C' } })), 'H');
   assert.strictEqual(auth.presentedToken(req()), null);
+});
+
+test('parseCookie extracts the named cookie from a multi-cookie header', () => {
+  assert.strictEqual(auth.parseCookie('a=1; harbor_token=XYZ; b=2', 'harbor_token'), 'XYZ');
+  assert.strictEqual(auth.parseCookie('other=1', 'harbor_token'), null);
+  assert.strictEqual(auth.parseCookie('', 'harbor_token'), null);
+  assert.strictEqual(auth.parseCookie(undefined, 'harbor_token'), null);
 });
