@@ -21,6 +21,8 @@ open any dev server from your phone. One Node process, no database, no cloud.
   managed service in place; **live-tail its logs** (streaming, with in-view search).
 - **Health checks** (optional): give a service a `health` path and Harbor pings it — **healthy** on
   a 2xx/3xx, **not responding** otherwise — so you can tell "bound" from "actually serving."
+- **Drop alerts**: turn on **🔔 Alerts** and Harbor sends a desktop notification when a running
+  service goes down (while Harbor is open — it's a browser notification, not a background daemon).
 - **Known services** defined in [`services.json`](services.json): Start ones that are stopped,
   Stop ones that are running, and flip **autostart** per service from the UI. Matched to live
   processes **by port**.

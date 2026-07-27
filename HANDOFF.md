@@ -170,6 +170,13 @@ while. Two stacked iOS behaviours, two fixes:
   doesn't hammer it) and each ping has a 1.5s timeout (a hung server can't stall the dashboard).
   Payload `health` is `true`/`false` only when running AND a path is set, else `null` (UI shows the
   badge only for a real boolean). Pings run in parallel across services.
+- **Drop alerts are client-side** (`notifyDrops`/`detectDrops` in app.js). The client diffs each
+  poll's service statuses against the previous and fires a browser `Notification` when one
+  transitions INTO `down` (was running → needs restart). This only works **while Harbor is open**
+  (even backgrounded) — there is no service worker or Push API, deliberately (background push needs
+  a push service + SW, out of scope). Enabling requests Notification permission on a user gesture
+  (Safari requires the gesture) and sets `localStorage.harbor_alerts`. `detectDrops` is a pure diff;
+  the baseline resets when you toggle alerts on so you're only alerted going forward.
 - **Live logs are SSE** (`GET /api/services/:name/logs/stream`): send the last ~100 lines, then
   poll the file size every 1s and stream the appended delta (robust across editors/rotation — resets
   `offset` to 0 if the file shrank). `EventSource` can't set headers, so auth rides the durable

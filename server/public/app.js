@@ -621,15 +621,45 @@ function applyRender(state) {
   renderPorts(state.listeners.filter((l) => !l.isSelf && l.kind !== 'known' && matchesFilter(l, q)));
 }
 
+// ---- drop alerts --------------------------------------------------------------------------
+// Notify (browser Notification) when a managed service transitions INTO "down" (was running, now
+// needs restart). Client-side only, so it fires while the app/tab is open — no service worker,
+// no background push. Detection is a pure diff of previous vs current statuses.
+let prevStatus = {}; // name -> last-seen status
+function alertsEnabled() {
+  return localStorage.getItem('harbor_alerts') === 'on' && 'Notification' in window && Notification.permission === 'granted';
+}
+function detectDrops(prev, services) {
+  // a "drop" = a service that was known and not-down before, now reporting 'down'
+  return services.filter((s) => prev[s.name] && prev[s.name] !== 'down' && s.status === 'down');
+}
+function notifyDrops(services) {
+  if (alertsEnabled()) {
+    for (const s of detectDrops(prevStatus, services)) {
+      const n = new Notification(`Harbor — ${s.customName || s.name} stopped`, {
+        body: `Was running on :${s.ports[0]}, now needs restart.`,
+        tag: `harbor-down-${s.name}`,
+      });
+      n.onclick = () => window.focus();
+    }
+  }
+  prevStatus = Object.fromEntries(services.map((s) => [s.name, s.status]));
+}
+
 async function load() {
   try {
     const state = await api('/api/state');
     lastState = state;
+    notifyDrops(state.services); // detect drops on the full (unfiltered) service list
     TAILNET = state.tailscale.host;
     $('#selfInfo').textContent = `this is Harbor · pid ${state.self.pid} · :${state.self.port}`;
     $('#touchIdBtn').hidden = state.touchId.enrolled || location.hostname !== 'localhost';
     // Pairing (QR with the token) is a laptop-only affordance — never expose it on the phone.
     $('#pairBtn').hidden = !(location.hostname === 'localhost' || location.hostname === '127.0.0.1');
+    if ('Notification' in window) {
+      $('#alertBtn').hidden = false;
+      $('#alertBtn').textContent = alertsEnabled() ? '🔔 Alerts on' : '🔔 Alerts';
+    }
     renderBanners(state);
     applyRender(state);
     $('#lastRefresh').textContent = 'updated ' + new Date().toLocaleTimeString();
@@ -687,6 +717,22 @@ document.addEventListener('keydown', (e) => {
 $('#refreshBtn').onclick = load;
 $('#touchIdBtn').onclick = doTouchIdEnroll;
 $('#pairBtn').onclick = openPairModal;
+
+// Alerts toggle: request Notification permission on first enable, then flip a localStorage flag.
+$('#alertBtn').onclick = async () => {
+  if (localStorage.getItem('harbor_alerts') === 'on') {
+    localStorage.removeItem('harbor_alerts');
+    toast('Drop alerts off');
+  } else {
+    let perm = Notification.permission;
+    if (perm === 'default') perm = await Notification.requestPermission();
+    if (perm !== 'granted') return toast('Allow notifications for Harbor in your browser to enable alerts');
+    localStorage.setItem('harbor_alerts', 'on');
+    prevStatus = {}; // reset baseline so we only alert on drops from here forward
+    toast('Drop alerts on — you\'ll be notified when a running service goes down');
+  }
+  $('#alertBtn').textContent = alertsEnabled() ? '🔔 Alerts on' : '🔔 Alerts';
+};
 
 // Filter box: re-render instantly from the last fetched state (no network) as you type.
 $('#filter').addEventListener('input', () => { if (lastState) applyRender(lastState); });
