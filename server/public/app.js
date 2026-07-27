@@ -159,7 +159,11 @@ function openModal(title, bodyHtml, footButtons) {
   footButtons.forEach((b) => foot.appendChild(b));
   $('#modalBack').classList.add('show');
 }
-function closeModal() { $('#modalBack').classList.remove('show'); }
+let activeLogStream = null; // EventSource for the live-logs modal, closed when the modal closes
+function closeModal() {
+  $('#modalBack').classList.remove('show');
+  if (activeLogStream) { activeLogStream.close(); activeLogStream = null; }
+}
 function closeBtn(label = 'Close') { const b = document.createElement('button'); b.textContent = label; b.className = 'ghost'; b.onclick = closeModal; return b; }
 $('#modalBack').addEventListener('click', (e) => { if (e.target === $('#modalBack')) closeModal(); });
 
@@ -330,11 +334,31 @@ async function openPairModal() {
     $('#modalBody').innerHTML = `<div class="banner warn">${esc(err.message)}</div>`;
   }
 }
-async function showLogs(name) {
-  try {
-    const r = await api(`/api/services/${encodeURIComponent(name)}/logs`);
-    openModal(`Logs — ${name} (last ${r.lines.length} lines)`, `<pre>${esc(r.lines.join('\n'))}</pre>`, [closeBtn()]);
-  } catch (err) { toast('Could not load logs: ' + err.message); }
+// Live-tailing log viewer: streams via EventSource (SSE), with an in-modal search filter and a
+// live/disconnected indicator. The stream is closed by closeModal (activeLogStream).
+function showLogs(name) {
+  openModal(`Logs — ${esc(name)}`,
+    `<div class="logbar"><input id="logSearch" type="search" placeholder="search lines…" autocomplete="off"><span class="live" id="logLive">● live</span></div><pre id="logPre"></pre>`,
+    [closeBtn()]);
+  const pre = $('#logPre');
+  let lines = [];
+  const render = () => {
+    const q = ($('#logSearch').value || '').toLowerCase();
+    const shown = (q ? lines.filter((l) => l.toLowerCase().includes(q)) : lines).slice(-1000);
+    pre.textContent = shown.join('\n');
+    pre.scrollTop = pre.scrollHeight; // keep pinned to newest
+  };
+  // EventSource sends the durable cookie automatically; pass ?token= too when we hold one (phone).
+  const url = `/api/services/${encodeURIComponent(name)}/logs/stream` + (TOKEN ? `?token=${encodeURIComponent(TOKEN)}` : '');
+  const es = new EventSource(url);
+  activeLogStream = es;
+  es.onmessage = (e) => {
+    lines.push(e.data);
+    if (lines.length > 3000) lines = lines.slice(-3000); // bound memory
+    render();
+  };
+  es.onerror = () => { const el = $('#logLive'); if (el) { el.textContent = '○ disconnected'; el.classList.add('off'); } };
+  $('#logSearch').addEventListener('input', render);
 }
 
 // ---- copy Tailscale link ------------------------------------------------------------------

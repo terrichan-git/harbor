@@ -202,6 +202,49 @@ app.get('/api/services/:name/logs', auth.requireForRead(), (req, res) => {
   }
 });
 
+// Live log stream (Server-Sent Events): sends the last ~100 lines, then each new appended line as
+// the file grows. EventSource can't set headers, but it sends the durable cookie automatically and
+// can carry ?token= — so requireForRead authenticates it (loopback is token-free). We poll the file
+// size once a second (robust across editors/rotation) rather than fs.watch.
+app.get('/api/services/:name/logs/stream', auth.requireForRead(), (req, res) => {
+  const logPath = path.join(PATHS.LOGS, `${req.params.name}.log`);
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    Connection: 'keep-alive',
+    'X-Accel-Buffering': 'no',
+  });
+  res.write('retry: 3000\n\n');
+  const sendLines = (text) => {
+    for (const line of text.split('\n')) if (line !== '') res.write(`data: ${line}\n\n`);
+  };
+
+  let offset = 0;
+  try {
+    const text = fs.readFileSync(logPath, 'utf8');
+    offset = Buffer.byteLength(text);
+    sendLines(text.split('\n').slice(-100).join('\n'));
+  } catch {
+    res.write('data: (no log yet — start the service to create one)\n\n');
+  }
+
+  const tail = setInterval(() => {
+    let stat;
+    try { stat = fs.statSync(logPath); } catch { return; }
+    if (stat.size < offset) offset = 0; // truncated or rotated — re-read from the top
+    if (stat.size > offset) {
+      const fd = fs.openSync(logPath, 'r');
+      const buf = Buffer.alloc(stat.size - offset);
+      fs.readSync(fd, buf, 0, buf.length, offset);
+      fs.closeSync(fd);
+      offset = stat.size;
+      sendLines(buf.toString('utf8'));
+    }
+  }, 1000);
+  const ping = setInterval(() => res.write(': ping\n\n'), 20000); // keep the connection warm
+  req.on('close', () => { clearInterval(tail); clearInterval(ping); });
+});
+
 // ---- mutating API (token + same-site, plus Touch ID on destructive actions) -
 const mutate = auth.requireForMutation();
 const destructive = [auth.requireForMutation(), webauthn.requireUnlock()];

@@ -164,6 +164,12 @@ while. Two stacked iOS behaviours, two fixes:
 - **Restart** (`POST /api/services/:name/restart`, managed services only) is stop-then-start:
   graceful TERM → force if it resists → `startService`. Not offered for "running externally"
   services (no PID file, so Harbor can't stop them).
+- **Live logs are SSE** (`GET /api/services/:name/logs/stream`): send the last ~100 lines, then
+  poll the file size every 1s and stream the appended delta (robust across editors/rotation — resets
+  `offset` to 0 if the file shrank). `EventSource` can't set headers, so auth rides the durable
+  cookie (or `?token=`) through `requireForRead`; loopback is token-free. `req.on('close')` clears
+  the interval; the client closes the stream in `closeModal` (`activeLogStream`). The in-modal search
+  filters client-side over a bounded buffer (last 3000 lines).
 
 ## Frontend note
 

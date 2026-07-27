@@ -294,6 +294,14 @@ button.icon { padding: 6px 8px; }
   border: 1px solid var(--border); border-radius: var(--r-sm); padding: var(--s-3);
   max-height: 50vh; overflow: auto; white-space: pre-wrap; word-break: break-word;
 }
+.logbar { display: flex; align-items: center; gap: var(--s-3); margin-bottom: var(--s-2); }
+.logbar #logSearch {
+  flex: 1 1 auto; font: inherit; font-size: var(--t-sm); color: var(--text);
+  background: var(--surface-2); border: 1px solid var(--border-strong); border-radius: var(--r-sm); padding: 6px 10px;
+}
+.logbar #logSearch:focus { outline: none; box-shadow: var(--focus); border-color: var(--accent); }
+.logbar .live { font-size: var(--t-xs); font-weight: 600; color: var(--ok); white-space: nowrap; }
+.logbar .live.off { color: var(--text-3); }
 .modal .foot { display: flex; justify-content: flex-end; gap: var(--s-2); margin-top: var(--s-4); }
 .field { margin-bottom: var(--s-3); }
 .field label { display: block; font-size: var(--t-xs); font-weight: 600; color: var(--text-2); margin-bottom: 4px; }
