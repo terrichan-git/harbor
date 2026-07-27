@@ -1,7 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { validate, match, normalisePorts, normaliseHealthPath, setAutostart, addService, removeService } = require('../server/lib/services');
+const { validate, match, normalisePorts, normaliseHealthPath, setFlag, setAutostart, setKeepAlive, addService, removeService } = require('../server/lib/services');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
@@ -37,6 +37,32 @@ test('normaliseHealthPath adds a leading slash and treats blank/non-string as no
   assert.strictEqual(normaliseHealthPath(''), null);
   assert.strictEqual(normaliseHealthPath(undefined), null);
   assert.strictEqual(normaliseHealthPath(123), null);
+});
+
+test('setFlag toggles autostart/keepAlive independently and rejects unknown flags', () => {
+  const tmp = path.join(os.tmpdir(), `harbor-flag-${process.pid}.json`);
+  fs.writeFileSync(tmp, JSON.stringify({ services: [{ name: 'a', cwd: '~/x', command: 'c', port: 3000 }] }, null, 2));
+  try {
+    assert.strictEqual(setKeepAlive('a', true, tmp).keepAlive, true);
+    assert.strictEqual(setAutostart('a', true, tmp).autostart, true);
+    const after = JSON.parse(fs.readFileSync(tmp, 'utf8')).services[0];
+    assert.strictEqual(after.keepAlive, true); // both set, independent
+    assert.strictEqual(after.autostart, true);
+    assert.strictEqual(setKeepAlive('a', false, tmp).keepAlive, false);
+    assert.strictEqual(JSON.parse(fs.readFileSync(tmp, 'utf8')).services[0].autostart, true); // untouched
+    assert.strictEqual(setFlag('a', 'bogus', true, tmp).ok, false); // unknown flag refused
+  } finally {
+    fs.rmSync(tmp, { force: true });
+  }
+});
+
+test('validate defaults keepAlive to false and honours true', () => {
+  const { services } = validate({ services: [
+    { name: 'a', cwd: '~/x', command: 'c', port: 3000, keepAlive: true },
+    { name: 'b', cwd: '~/y', command: 'c', port: 3001 },
+  ] });
+  assert.strictEqual(services[0].keepAlive, true);
+  assert.strictEqual(services[1].keepAlive, false);
 });
 
 test('validate carries a normalised health path (and null when absent)', () => {

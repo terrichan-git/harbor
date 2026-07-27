@@ -206,6 +206,13 @@ async function toggleAutostart(name, current) {
     load();
   } catch (err) { toast('Autostart toggle failed: ' + err.message); }
 }
+async function toggleKeepAlive(name, current) {
+  try {
+    const r = await api(`/api/services/${encodeURIComponent(name)}/keepalive`, { method: 'POST', body: JSON.stringify({ enabled: !current }) });
+    toast(`${name}: keep-alive ${r.keepAlive ? 'on' : 'off'}`);
+    load();
+  } catch (err) { toast('Keep-alive toggle failed: ' + err.message); }
+}
 async function stopService(name) {
   try {
     const r = await withTouchId(() => api(`/api/services/${encodeURIComponent(name)}/stop`, { method: 'POST', body: '{}' }));
@@ -423,6 +430,11 @@ function serviceRowHtml(s) {
       data-act="autostart" data-name="${esc(s.name)}" data-enabled="${s.autostart ? '1' : '0'}"
       title="Start &quot;${esc(s.name)}&quot; automatically when Harbor launches at login">
       <span class="knob"></span><span class="switch-label">autostart</span></button>`;
+  // keepAlive toggle — Harbor auto-restarts it if it crashes (opt-in supervisor).
+  const keepAlive = `<button class="switch ${s.keepAlive ? 'on' : ''}" role="switch" aria-checked="${s.keepAlive}"
+      data-act="keepalive" data-name="${esc(s.name)}" data-enabled="${s.keepAlive ? '1' : '0'}"
+      title="Auto-restart &quot;${esc(s.name)}&quot; if it crashes (Harbor-started services only)">
+      <span class="knob"></span><span class="switch-label">keep&#8209;alive</span></button>`;
   // Health badge — only when a check actually ran (running + health path configured).
   const healthBadge = s.health === true
     ? `<span class="kind ok" title="Health check passing (2xx–3xx)">healthy</span>`
@@ -448,7 +460,7 @@ function serviceRowHtml(s) {
       ${links ? `<div class="links">${links}</div>` : ''}
       ${desc}
     </div>
-    <div class="actions">${editBtn}${autostart}${runBtns}${demoteBtn}</div>
+    <div class="actions">${editBtn}${autostart}${keepAlive}${runBtns}${demoteBtn}</div>
   </div>`;
 }
 
@@ -704,6 +716,7 @@ document.addEventListener('click', (e) => {
   else if (act === 'open') openPort(Number(btn.dataset.port));
   else if (act === 'logs') showLogs(name);
   else if (act === 'autostart') toggleAutostart(name, btn.dataset.enabled === '1');
+  else if (act === 'keepalive') toggleKeepAlive(name, btn.dataset.enabled === '1');
   else if (act === 'edit') openEditModal(btn.dataset);
   else if (act === 'promote') openPromoteModal(btn.dataset);
   else if (act === 'demote') confirmDemote(name);

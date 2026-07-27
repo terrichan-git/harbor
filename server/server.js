@@ -83,6 +83,36 @@ async function reconcileOnStartup() {
   }
 }
 
+// ---- keepAlive supervisor (opt-in per service) ------------------------------
+// For services flagged keepAlive:true, restart the ones Harbor started that have since died. Only
+// acts on a service with a PID file whose process is gone — a deliberate Stop removes the PID file,
+// so this never fights the user. Throttled per service so a crash-looping process can't spin.
+const KEEPALIVE_EVERY = 5000;
+const KEEPALIVE_THROTTLE = 15000; // don't restart the same service more than ~once/15s
+const lastKeepAliveRestart = new Map();
+
+function superviseKeepAlive() {
+  const { services } = servicesLib.load();
+  for (const svc of services) {
+    if (!svc.keepAlive) continue;
+    const record = registry.read(svc.name);
+    if (!record) continue; // not Harbor-started (or deliberately stopped) — leave it alone
+    if (registry.isAlive(record.pid)) continue; // still running — fine
+    const last = lastKeepAliveRestart.get(svc.name) || 0;
+    if (Date.now() - last < KEEPALIVE_THROTTLE) continue; // recently restarted — back off
+    try {
+      registry.remove(svc.name); // clear the stale PID file first
+      const rec = processes.startService(svc);
+      lastKeepAliveRestart.set(svc.name, Date.now());
+      everSeenRunning.add(svc.name);
+      console.log(`[harbor] keepAlive restarted "${svc.name}" (pid ${rec.pid})`);
+    } catch (err) {
+      console.log(`[harbor] keepAlive restart of "${svc.name}" failed: ${err.message}`);
+    }
+  }
+}
+setInterval(superviseKeepAlive, KEEPALIVE_EVERY).unref();
+
 // ---- static frontend --------------------------------------------------------
 // index.html is served with the token injected for loopback requests, so the laptop UI works
 // with zero token entry. Remote requests get a blank token and must supply ?token= once.
@@ -155,6 +185,7 @@ app.get('/api/state', auth.requireForRead(), async (req, res) => {
           command: s.command,
           cwd: s.cwd,
           autostart: s.autostart,
+          keepAlive: s.keepAlive,
           running: s.running,
           status,
           pid: s.listener ? s.listener.pid : null,
@@ -318,6 +349,14 @@ app.post('/api/services/:name/autostart', mutate, (req, res) => {
   const result = servicesLib.setAutostart(req.params.name, enabled);
   if (!result.ok) return res.status(400).json({ error: result.error });
   res.json({ autostart: result.autostart });
+});
+
+// Toggle keepAlive (opt-in auto-restart on crash). Writes services.json; the supervisor picks it up.
+app.post('/api/services/:name/keepalive', mutate, (req, res) => {
+  const enabled = req.body && req.body.enabled === true;
+  const result = servicesLib.setKeepAlive(req.params.name, enabled);
+  if (!result.ok) return res.status(400).json({ error: result.error });
+  res.json({ keepAlive: result.keepAlive });
 });
 
 app.post('/api/services/:name/start', mutate, (req, res) => {

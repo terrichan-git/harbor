@@ -71,6 +71,7 @@ function validate(raw) {
       command: s.command,
       ports,
       autostart: s.autostart === true,
+      keepAlive: s.keepAlive === true,
       // optional health-check path; null when not configured
       health: normaliseHealthPath(s.health),
     });
@@ -92,11 +93,12 @@ function normaliseHealthPath(health) {
   return p.startsWith('/') ? p : `/${p}`;
 }
 
-// Flip a service's autostart flag in services.json, in place. Reads the RAW file (so the $comment
-// and any other fields are preserved), sets the one boolean, writes back with 2-space indent.
-// This is the only path that writes services.json — the config stays hand-editable, we just poke
-// this one flag from the UI. Returns { ok } or { ok:false, error }.
-function setAutostart(name, enabled, filePath = PATHS.SERVICES_JSON) {
+// Flip a boolean flag on a service in services.json, in place. Reads the RAW file (so $comment and
+// any other fields are preserved), sets the one boolean, writes back with 2-space indent. The only
+// path that writes these flags — config stays hand-editable, we just poke one field from the UI.
+// `key` is restricted to the known toggles. Returns { ok, [key]: value } or { ok:false, error }.
+function setFlag(name, key, enabled, filePath = PATHS.SERVICES_JSON) {
+  if (key !== 'autostart' && key !== 'keepAlive') return { ok: false, error: `unknown flag "${key}"` };
   let raw;
   try {
     raw = JSON.parse(fs.readFileSync(filePath, 'utf8'));
@@ -108,14 +110,16 @@ function setAutostart(name, enabled, filePath = PATHS.SERVICES_JSON) {
   }
   const svc = raw.services.find((s) => s && s.name === name);
   if (!svc) return { ok: false, error: `unknown service "${name}"` };
-  svc.autostart = enabled === true;
+  svc[key] = enabled === true;
   try {
     fs.writeFileSync(filePath, JSON.stringify(raw, null, 2) + '\n');
   } catch (err) {
     return { ok: false, error: `Could not write services.json: ${err.message}` };
   }
-  return { ok: true, autostart: svc.autostart };
+  return { ok: true, [key]: svc[key] };
 }
+const setAutostart = (name, enabled, filePath) => setFlag(name, 'autostart', enabled, filePath);
+const setKeepAlive = (name, enabled, filePath) => setFlag(name, 'keepAlive', enabled, filePath);
 
 // Append a new service (promote a detected listener). Validates the single entry, refuses a
 // duplicate name, and writes it into services.json. Autostart defaults off. Returns { ok } or
@@ -223,4 +227,4 @@ function match(services, listeners) {
   return { serviceStates, portToService };
 }
 
-module.exports = { validate, load, match, normalisePorts, normaliseHealthPath, setAutostart, addService, removeService, ensureExists };
+module.exports = { validate, load, match, normalisePorts, normaliseHealthPath, setFlag, setAutostart, setKeepAlive, addService, removeService, ensureExists };

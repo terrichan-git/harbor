@@ -1,5 +1,5 @@
 {
-  "$comment": "SAMPLE — copy to services.json and edit (cp services.example.json services.json). services.json is git-ignored (your local machine state); this template is tracked. Each service is matched to a running process BY PORT. 'port' may be a single number or an array. 'autostart' (default false) starts it when Harbor launches at login. 'health' (optional) is a path Harbor pings — a 2xx/3xx shows 'healthy', anything else 'not responding'. 'cwd' and 'command' spawn it via your shell. You can also create services from the UI with the + Service button on a detected project.",
+  "$comment": "SAMPLE — copy to services.json and edit (cp services.example.json services.json). services.json is git-ignored (your local machine state); this template is tracked. Each service is matched to a running process BY PORT. 'port' may be a single number or an array. 'autostart' (default false) starts it when Harbor launches at login. 'keepAlive' (default false) auto-restarts a Harbor-started service if it crashes. 'health' (optional) is a path Harbor pings — a 2xx/3xx shows 'healthy', anything else 'not responding'. 'cwd' and 'command' spawn it via your shell. Toggle autostart/keep-alive from the UI, or create services with the + Service button on a detected project.",
   "services": [
     {
       "name": "web",

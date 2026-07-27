@@ -170,6 +170,14 @@ while. Two stacked iOS behaviours, two fixes:
   doesn't hammer it) and each ping has a 1.5s timeout (a hung server can't stall the dashboard).
   Payload `health` is `true`/`false` only when running AND a path is set, else `null` (UI shows the
   badge only for a real boolean). Pings run in parallel across services.
+- **keepAlive is an opt-in server-side supervisor** (`superviseKeepAlive`, 5s interval). For a
+  service flagged `keepAlive:true` that Harbor started (has a PID file) whose process has since
+  died, it clears the stale PID file and restarts it. It only acts when a PID file exists — a
+  deliberate Stop removes the PID file, so the supervisor never fights the user (verified). Throttled
+  to ~once/15s per service so a crash-looping process can't spin. Only restarts Harbor-started
+  services (can't revive a "running externally" one). This revisits the original "no supervisor"
+  non-goal — deliberately, and strictly opt-in. `setFlag` (autostart|keepAlive) is the sole writer;
+  `setAutostart`/`setKeepAlive` are thin wrappers.
 - **Drop alerts are client-side** (`notifyDrops`/`detectDrops` in app.js). The client diffs each
   poll's service statuses against the previous and fires a browser `Notification` when one
   transitions INTO `down` (was running → needs restart). This only works **while Harbor is open**
