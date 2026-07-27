@@ -149,6 +149,22 @@ while. Two stacked iOS behaviours, two fixes:
   Safari, and Add to Home Screen *from the tokenized URL* (it's no longer stripped). The new app
   launches with the token and stays signed in.
 
+## Resource stats, filter, Open, Restart (added after v1)
+
+- **CPU / memory / uptime come from the same `ps` call.** `ports.parsePs` reads
+  `ps -o pid=,%cpu=,rss=,etime=,command=` — `command` MUST stay last (it's the space-containing
+  remainder of the line; the four fixed fields are whitespace-tokenised before it). `%cpu` on macOS
+  is a **lifetime average**, not instantaneous — idle dev servers read ~0%, which is correct, not a
+  bug. `rss` is KB; the UI formats KB→MB/GB and the ps `etime` (`[[dd-]hh:]mm:ss`) into `up 3h 15m`.
+- **Filter re-renders from `lastState`, no refetch.** The header `#filter` box calls `applyRender`
+  on `input`; the box lives in the header (not the auto-refreshed cards) so its value survives the
+  4s rebuild. Matches across label/name/customName/command/serviceName/category/ports.
+- **Open** uses `location.hostname` so the link works both on the Mac (`localhost`) and the phone
+  (tailnet host). Shown for running services and non-system/tool listeners.
+- **Restart** (`POST /api/services/:name/restart`, managed services only) is stop-then-start:
+  graceful TERM → force if it resists → `startService`. Not offered for "running externally"
+  services (no PID file, so Harbor can't stop them).
+
 ## Frontend note
 
 Frontend is static (`server/public/`), no build step. `index.html` contains a `__HARBOR_TOKEN__`

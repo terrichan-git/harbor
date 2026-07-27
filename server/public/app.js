@@ -22,6 +22,30 @@ let UNLOCK = sessionStorage.getItem('harbor_unlock') || '';
 const $ = (sel) => document.querySelector(sel);
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
+// Resource-stat formatters for display.
+const fmtCpu = (c) => (c == null ? '' : `${c.toFixed(c < 10 ? 1 : 0)}% cpu`);
+function fmtMem(rssKb) {
+  if (rssKb == null) return '';
+  const mb = rssKb / 1024;
+  return mb >= 1024 ? `${(mb / 1024).toFixed(1)} GB` : `${Math.round(mb)} MB`;
+}
+// ps etime is [[dd-]hh:]mm:ss → a short "2d 4h" / "3h 15m" / "12m" / "9s".
+function fmtUptime(etime) {
+  if (!etime) return '';
+  const m = etime.match(/^(?:(\d+)-)?(?:(\d+):)?(\d+):(\d+)$/);
+  if (!m) return etime;
+  const [d, h, mi, s] = [Number(m[1] || 0), Number(m[2] || 0), Number(m[3]), Number(m[4])];
+  if (d) return `${d}d ${h}h`;
+  if (h) return `${h}h ${mi}m`;
+  if (mi) return `${mi}m`;
+  return `${s}s`;
+}
+// One compact "· 2.3% cpu · 180 MB · up 3h 15m" tail, omitting whatever's missing.
+function statsTail({ cpu, rssKb, etime }) {
+  const parts = [fmtCpu(cpu), fmtMem(rssKb) && `${fmtMem(rssKb)}`, fmtUptime(etime) && `up ${fmtUptime(etime)}`].filter(Boolean);
+  return parts.length ? ` · ${parts.join(' · ')}` : '';
+}
+
 function toast(msg, ms = 2200) {
   const t = $('#toast');
   t.textContent = msg;
@@ -158,6 +182,18 @@ async function forceKill(pid) {
 async function startService(name) {
   try { await api(`/api/services/${encodeURIComponent(name)}/start`, { method: 'POST', body: '{}' }); toast(`Starting ${name}…`); setTimeout(load, 600); }
   catch (err) { toast('Start failed: ' + err.message); }
+}
+async function restartService(name) {
+  try {
+    await withTouchId(() => api(`/api/services/${encodeURIComponent(name)}/restart`, { method: 'POST', body: '{}' }));
+    toast(`Restarting ${name}…`); setTimeout(load, 800);
+  } catch (err) { toast('Restart failed: ' + err.message); }
+}
+// Open a listening port in a new tab, using whatever host you're viewing Harbor from (localhost on
+// the Mac, the tailnet name on the phone) so the link works in both places.
+function openPort(port) {
+  if (!port) return;
+  window.open(`http://${location.hostname}:${port}`, '_blank', 'noopener');
 }
 async function toggleAutostart(name, current) {
   try {
@@ -364,8 +400,13 @@ function serviceRowHtml(s) {
       title="Start &quot;${esc(s.name)}&quot; automatically when Harbor launches at login">
       <span class="knob"></span><span class="switch-label">autostart</span></button>`;
   const startLabel = status === 'down' ? 'Restart' : 'Start';
+  const openBtn = s.running ? `<button class="ghost" data-act="open" data-port="${s.ports[0]}" title="Open in browser">Open</button>` : '';
   const runBtns = s.running
-    ? `${s.managed ? `<button class="danger" data-act="stop" data-name="${esc(s.name)}">Stop</button>` : `<span class="lock" title="Running, but not started by Harbor">running externally</span>`}
+    ? `${s.managed
+        ? `<button class="danger" data-act="stop" data-name="${esc(s.name)}">Stop</button>
+           <button class="ghost" data-act="restart" data-name="${esc(s.name)}">Restart</button>`
+        : `<span class="lock" title="Running, but not started by Harbor">running externally</span>`}
+       ${openBtn}
        <button class="ghost" data-act="logs" data-name="${esc(s.name)}">Logs</button>`
     : `<button class="primary" data-act="start" data-name="${esc(s.name)}">${startLabel}</button>
        <button class="ghost" data-act="logs" data-name="${esc(s.name)}">Logs</button>`;
@@ -373,7 +414,7 @@ function serviceRowHtml(s) {
     <span class="dot ${kind}"></span>
     <div class="main">
       <div class="name">${esc(display)} ${idTag} <span class="kind ${kind}">${label}</span> ${ports}</div>
-      <div class="sub">${esc(s.command)}${s.pid ? ` · pid ${s.pid}` : ''}</div>
+      <div class="sub">${esc(s.command)}${s.pid ? ` · pid ${s.pid}` : ''}${statsTail(s)}</div>
       ${links ? `<div class="links">${links}</div>` : ''}
       ${desc}
     </div>
@@ -470,6 +511,10 @@ function rowHtml(l) {
   const promoteBtn = (l.kind !== 'known' && l.cwd)
     ? `<button class="ghost" data-act="promote" data-label="${esc(l.label || l.name)}" data-cwd="${esc(l.cwd)}" data-command="${esc(l.suggestedCommand || l.command || '')}" data-port="${esc(l.ports.join(','))}" title="Manage this as a service (Start/Stop/autostart)">+ Service</button>`
     : '';
+  // Open in the browser — for things plausibly serving HTTP (skip system/tool to cut noise).
+  const openBtn = (l.category !== 'system' && l.category !== 'tool')
+    ? `<button class="ghost" data-act="open" data-port="${l.ports[0]}" title="Open in browser">Open</button>`
+    : '';
   const action = l.protected
     ? `<span class="lock" title="${esc(l.protectedReason)}">🔒 ${esc(l.protectedReason)}</span>`
     : `<button class="danger" data-act="kill" data-pid="${l.pid}" data-name="${esc(l.label || l.name)}">Kill</button>`;
@@ -477,11 +522,11 @@ function rowHtml(l) {
     <span class="dot ${meta.tone}"></span>
     <div class="main">
       <div class="name">${esc(l.label || l.name)} ${procTag} ${badge} ${ports}</div>
-      <div class="sub">pid ${l.pid} · ${esc(l.command)}</div>
+      <div class="sub">pid ${l.pid} · ${esc(l.command)}${statsTail(l)}</div>
       ${links ? `<div class="links">${links}</div>` : ''}
       ${desc}
     </div>
-    <div class="actions">${promoteBtn}${editBtn}${action}</div>
+    <div class="actions">${openBtn}${promoteBtn}${editBtn}${action}</div>
   </div>`;
 }
 
@@ -526,23 +571,37 @@ function renderBanners(state) {
 
 // ---- load + auto-refresh ------------------------------------------------------------------
 let refreshTimer = null;
+let lastState = null; // kept so the filter box can re-render instantly without a refetch
+
+// Case-insensitive substring match across the fields worth searching.
+function matchesFilter(o, q) {
+  if (!q) return true;
+  const hay = [o.label, o.name, o.customName, o.command, o.serviceName, o.category, (o.ports || []).join(' ')]
+    .filter(Boolean).join(' ').toLowerCase();
+  return hay.includes(q);
+}
+
+// Render the three panes from a state object, applying the current filter. Split out from load()
+// so typing in the filter box re-renders from lastState with no network round-trip.
+function applyRender(state) {
+  const q = ($('#filter').value || '').trim().toLowerCase();
+  renderSelf(state);
+  renderServices(state.services.filter((s) => !s.isSelf && matchesFilter(s, q)));
+  // Listening ports = UNMANAGED listeners only (known services have their own section above).
+  renderPorts(state.listeners.filter((l) => !l.isSelf && l.kind !== 'known' && matchesFilter(l, q)));
+}
 
 async function load() {
   try {
     const state = await api('/api/state');
+    lastState = state;
     TAILNET = state.tailscale.host;
     $('#selfInfo').textContent = `this is Harbor · pid ${state.self.pid} · :${state.self.port}`;
     $('#touchIdBtn').hidden = state.touchId.enrolled || location.hostname !== 'localhost';
     // Pairing (QR with the token) is a laptop-only affordance — never expose it on the phone.
     $('#pairBtn').hidden = !(location.hostname === 'localhost' || location.hostname === '127.0.0.1');
     renderBanners(state);
-    renderSelf(state);
-    // Harbor itself is shown only in its own top section — keep it out of the groups so it
-    // can't be treated as a normal (circular) known service.
-    renderServices(state.services.filter((s) => !s.isSelf));
-    // Listening ports = UNMANAGED listeners only. Known services already have their own section
-    // above, so exclude them here (and Harbor itself) to avoid showing the same thing twice.
-    renderPorts(state.listeners.filter((l) => !l.isSelf && l.kind !== 'known'));
+    applyRender(state);
     $('#lastRefresh').textContent = 'updated ' + new Date().toLocaleTimeString();
   } catch (err) {
     if (err.status === 401) {
@@ -581,6 +640,8 @@ document.addEventListener('click', (e) => {
   if (act === 'kill') killPid(Number(pid), name);
   else if (act === 'start') startService(name);
   else if (act === 'stop') stopService(name);
+  else if (act === 'restart') restartService(name);
+  else if (act === 'open') openPort(Number(btn.dataset.port));
   else if (act === 'logs') showLogs(name);
   else if (act === 'autostart') toggleAutostart(name, btn.dataset.enabled === '1');
   else if (act === 'edit') openEditModal(btn.dataset);
@@ -596,6 +657,9 @@ document.addEventListener('keydown', (e) => {
 $('#refreshBtn').onclick = load;
 $('#touchIdBtn').onclick = doTouchIdEnroll;
 $('#pairBtn').onclick = openPairModal;
+
+// Filter box: re-render instantly from the last fetched state (no network) as you type.
+$('#filter').addEventListener('input', () => { if (lastState) applyRender(lastState); });
 
 // theme toggle (persisted); default follows the OS
 const savedTheme = localStorage.getItem('harbor_theme');

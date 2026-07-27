@@ -74,13 +74,22 @@ function parseAddress(name) {
   return { address: name.slice(0, idx), port };
 }
 
-// Parse `ps -o pid=,command=` output into { pid -> fullCommand }. The command is the
-// remainder of the line after the pid, so it can safely contain spaces.
-function parsePsCommands(output) {
+// Parse `ps -o pid=,%cpu=,rss=,etime=,command=` into { pid -> { cpu, rssKb, etime, command } }.
+// The four fixed fields are whitespace-delimited tokens; command is the remainder of the line
+// (so it can contain spaces) and MUST stay last in the -o list. etime is a single token
+// ([[dd-]hh:]mm:ss). rss is resident memory in KB; %cpu is a lifetime-average percentage.
+function parsePs(output) {
   const map = new Map();
   for (const line of output.split('\n')) {
-    const m = line.match(/^\s*(\d+)\s+(.*)$/);
-    if (m) map.set(Number(m[1]), m[2].trim());
+    const m = line.match(/^\s*(\d+)\s+([\d.]+)\s+(\d+)\s+(\S+)\s+(.*)$/);
+    if (m) {
+      map.set(Number(m[1]), {
+        cpu: Number(m[2]),
+        rssKb: Number(m[3]),
+        etime: m[4],
+        command: m[5].trim(),
+      });
+    }
   }
   return map;
 }
@@ -145,8 +154,9 @@ function suggestStartCommand(scripts, fallback) {
   return fallback || '';
 }
 
-// Collapse per-socket lsof rows + ps commands into one record per pid, with a ports[] list.
-function mergeListeners(lsofRows, psCommands) {
+// Collapse per-socket lsof rows + ps info into one record per pid, with a ports[] list and the
+// process's cpu / memory / uptime. `psInfo` is a Map pid -> { cpu, rssKb, etime, command }.
+function mergeListeners(lsofRows, psInfo) {
   const byPid = new Map();
   for (const r of lsofRows) {
     let rec = byPid.get(r.pid);
@@ -159,7 +169,8 @@ function mergeListeners(lsofRows, psCommands) {
   }
   const out = [];
   for (const rec of byPid.values()) {
-    const command = psCommands.get(rec.pid) || '';
+    const info = psInfo.get(rec.pid) || {};
+    const command = info.command || '';
     rec.ports.sort((a, b) => a - b);
     out.push({
       pid: rec.pid,
@@ -168,6 +179,9 @@ function mergeListeners(lsofRows, psCommands) {
       command: command || '(command unavailable — process may have exited)',
       ports: rec.ports,
       addresses: rec.addresses,
+      cpu: info.cpu ?? null, // lifetime-average %CPU
+      rssKb: info.rssKb ?? null, // resident memory, KB
+      etime: info.etime ?? null, // uptime, ps elapsed-time format
     });
   }
   // Stable, predictable ordering: by lowest port then pid.
@@ -180,18 +194,19 @@ async function listListeners() {
   const lsofOut = await run(LSOF, ['-nP', '-iTCP', '-sTCP:LISTEN', '-F', 'pcuLn']);
   const rows = parseLsof(lsofOut);
   const pids = [...new Set(rows.map((r) => r.pid))];
-  let psCommands = new Map();
+  let psInfo = new Map();
   let cwdByPid = new Map();
   if (pids.length) {
-    // Two batched lookups over the same pid set: full commands, and working directories.
+    // Two batched lookups over the same pid set: process info (cmd/cpu/mem/uptime), and cwds.
+    // command MUST stay last in -o (it's the space-containing remainder of the line).
     const [psOut, cwdOut] = await Promise.all([
-      run(PS, ['-o', 'pid=,command=', '-p', pids.join(',')]),
+      run(PS, ['-o', 'pid=,%cpu=,rss=,etime=,command=', '-p', pids.join(',')]),
       run(LSOF, ['-a', '-d', 'cwd', '-Fpn', '-p', pids.join(',')]),
     ]);
-    psCommands = parsePsCommands(psOut);
+    psInfo = parsePs(psOut);
     cwdByPid = parseLsofCwd(cwdOut);
   }
-  const merged = mergeListeners(rows, psCommands);
+  const merged = mergeListeners(rows, psInfo);
   const home = os.homedir();
   for (const rec of merged) {
     const cwd = cwdByPid.get(rec.pid) || null;
@@ -216,7 +231,7 @@ module.exports = {
   // exported for unit tests:
   parseLsof,
   parseAddress,
-  parsePsCommands,
+  parsePs,
   commandToName,
   mergeListeners,
   parseLsofCwd,

@@ -1,7 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { parseLsof, parseAddress, parsePsCommands, commandToName, mergeListeners, parseLsofCwd, projectLabel, suggestStartCommand } = require('../server/lib/ports');
+const { parseLsof, parseAddress, parsePs, commandToName, mergeListeners, parseLsofCwd, projectLabel, suggestStartCommand } = require('../server/lib/ports');
 
 test('parseAddress handles ipv4, wildcard, and bracketed ipv6', () => {
   assert.deepStrictEqual(parseAddress('127.0.0.1:5432'), { address: '127.0.0.1', port: 5432 });
@@ -20,11 +20,12 @@ test('parseLsof groups fields per process and yields one row per socket', () => 
   assert.deepStrictEqual(rows[2], { pid: 777, uid: 0, comm: 'postgres', address: '*', port: 5432 });
 });
 
-test('parsePsCommands keeps full command incl. spaces', () => {
-  const out = '  501 /usr/local/bin/node /path/dev.js --port 3000\n  777 postgres: writer process';
-  const map = parsePsCommands(out);
-  assert.strictEqual(map.get(501), '/usr/local/bin/node /path/dev.js --port 3000');
-  assert.strictEqual(map.get(777), 'postgres: writer process');
+test('parsePs pulls cpu/rss/etime and keeps the space-containing command last', () => {
+  const out = '  501 12.5 180224 03:15:22 /usr/local/bin/node /path/dev.js --port 3000\n'
+            + '  777  0.0  20480 2-04:00:01 postgres: writer process';
+  const map = parsePs(out);
+  assert.deepStrictEqual(map.get(501), { cpu: 12.5, rssKb: 180224, etime: '03:15:22', command: '/usr/local/bin/node /path/dev.js --port 3000' });
+  assert.deepStrictEqual(map.get(777), { cpu: 0, rssKb: 20480, etime: '2-04:00:01', command: 'postgres: writer process' });
 });
 
 test('commandToName is the basename of the first token', () => {
@@ -39,15 +40,20 @@ test('mergeListeners collapses multi-port processes and sorts by port', () => {
     { pid: 501, uid: 501, comm: 'node', address: '127.0.0.1', port: 3000 },
     { pid: 777, uid: 0, comm: 'postgres', address: '*', port: 5432 },
   ];
-  const ps = new Map([[501, '/usr/local/bin/node dev.js'], [777, 'postgres: writer']]);
+  const ps = new Map([
+    [501, { cpu: 3.2, rssKb: 180224, etime: '01:02:03', command: '/usr/local/bin/node dev.js' }],
+    [777, { cpu: 0, rssKb: 20480, etime: '15:00', command: 'postgres: writer' }],
+  ]);
   const merged = mergeListeners(rows, ps);
   assert.strictEqual(merged.length, 2);
   assert.strictEqual(merged[0].pid, 501);
   assert.deepStrictEqual(merged[0].ports, [3000, 3001]); // deduped + sorted
   assert.strictEqual(merged[0].name, 'node');
   assert.strictEqual(merged[0].command, '/usr/local/bin/node dev.js');
+  assert.strictEqual(merged[0].cpu, 3.2);       // stats carried through
+  assert.strictEqual(merged[0].rssKb, 180224);
+  assert.strictEqual(merged[0].etime, '01:02:03');
   // Real postgres shows in ps as "postgres: writer process", so the first token is "postgres:".
-  // This documents that quirk rather than pretending ps output is always clean.
   assert.strictEqual(merged[1].name, 'postgres:');
 });
 

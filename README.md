@@ -14,8 +14,11 @@ open any dev server from your phone. One Node process, no database, no cloud.
 
 ## What it does
 
-- **Lists TCP listeners** (`lsof` + `ps`) with process name, PID, port(s), and the full launch command.
+- **Lists TCP listeners** (`lsof` + `ps`) with process name, PID, port(s), the full launch command,
+  and live **CPU / memory / uptime** per process.
 - **Kill** any process you own, with a **force `kill -9`** step that only fires after you confirm.
+- **Filter** the whole view as you type; one-click **Open** any port in the browser; **Restart** a
+  managed service in place.
 - **Known services** defined in [`services.json`](services.json): Start ones that are stopped,
   Stop ones that are running, and flip **autostart** per service from the UI. Matched to live
   processes **by port**.

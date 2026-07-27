@@ -102,6 +102,13 @@ header.app {
 .brand { display: flex; align-items: center; gap: var(--s-2); font-weight: 700; font-size: var(--t-xl); letter-spacing: -.02em; }
 .brand .anchor { color: var(--accent); }
 .spacer { flex: 1 1 auto; }
+#filter {
+  font: inherit; font-size: var(--t-sm); color: var(--text);
+  background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--r-sm);
+  padding: 6px 10px; width: 160px; transition: width .15s, box-shadow .12s;
+}
+#filter:focus { outline: none; box-shadow: var(--focus); border-color: var(--accent); width: 220px; }
+#filter::placeholder { color: var(--text-3); }
 .muted { color: var(--text-3); font-size: var(--t-sm); }
 h2.section { font-size: var(--t-lg); margin: var(--s-6) 0 var(--s-3); letter-spacing: -.01em; }
 

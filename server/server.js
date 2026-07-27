@@ -150,6 +150,10 @@ app.get('/api/state', auth.requireForRead(), async (req, res) => {
           status,
           pid: s.listener ? s.listener.pid : null,
           managed: s.listener ? managedPids.has(s.listener.pid) : false,
+          // Resource stats of the running process (null when stopped), for the UI.
+          cpu: s.listener ? s.listener.cpu : null,
+          rssKb: s.listener ? s.listener.rssKb : null,
+          etime: s.listener ? s.listener.etime : null,
           // Harbor promoted as a service (matches its own port) — surfaced in the self section,
           // never in the Known services groups, so it can't circularly "manage itself".
           isSelf: s.ports.includes(PORT),
@@ -290,6 +294,26 @@ app.post('/api/services/:name/stop', destructive, async (req, res) => {
       everSeenRunning.delete(req.params.name);
     }
     res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: String(err.message || err) });
+  }
+});
+
+// Restart a Harbor-managed service: stop it (graceful → force if it resists) then start it fresh.
+// Only meaningful for a service Harbor started (has a PID file); one whose process Harbor didn't
+// spawn can't be stopped by us.
+app.post('/api/services/:name/restart', destructive, async (req, res) => {
+  const { services } = servicesLib.load();
+  const svc = services.find((s) => s.name === req.params.name);
+  if (!svc) return res.status(404).json({ error: 'unknown service' });
+  const record = registry.read(req.params.name);
+  if (!record) return res.status(409).json({ error: 'not managed by Harbor — Start it here first' });
+  try {
+    // Bring it down for sure before starting, so the new process can bind the port.
+    let stop = await processes.stopManaged(record, { force: false });
+    if (stop.status === 'needs-force') stop = await processes.stopManaged(record, { force: true });
+    const rec = processes.startService(svc);
+    res.json({ status: 'restarted', pid: rec.pid });
   } catch (err) {
     res.status(500).json({ error: String(err.message || err) });
   }
