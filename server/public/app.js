@@ -193,6 +193,21 @@ async function restartService(name) {
     toast(`Restarting ${name}…`); setTimeout(load, 800);
   } catch (err) { toast('Restart failed: ' + err.message); }
 }
+function confirmTakeover(name, occupant) {
+  const go = document.createElement('button');
+  go.textContent = 'Take over the port';
+  go.className = 'danger';
+  go.onclick = () => takeoverService(name);
+  openModal('Take over the port?',
+    `The port for <b>${esc(name)}</b> is held by <b>${esc(occupant || 'another process')}</b>, which Harbor didn't start. Take over? Harbor will <b>stop that process</b> and start <b>${esc(name)}</b> itself.`,
+    [closeBtn('Cancel'), go]);
+}
+async function takeoverService(name) {
+  try {
+    await withTouchId(() => api(`/api/services/${encodeURIComponent(name)}/takeover`, { method: 'POST', body: '{}' }));
+    toast(`Took over the port for ${name}`); closeModal(); setTimeout(load, 800);
+  } catch (err) { toast('Take over failed: ' + err.message); }
+}
 // Open a listening port in a new tab, using whatever host you're viewing Harbor from (localhost on
 // the Mac, the tailnet name on the phone) so the link works in both places.
 function openPort(port) {
@@ -443,11 +458,16 @@ function serviceRowHtml(s) {
       : '';
   const startLabel = status === 'down' ? 'Restart' : 'Start';
   const openBtn = s.running ? `<button class="ghost" data-act="open" data-port="${s.ports[0]}" title="Open in browser">Open</button>` : '';
+  // "Take over" — for a service running externally (its port held by a process Harbor didn't
+  // start): kill the occupant and start it under Harbor. Hidden if the occupant is protected.
+  const takeoverBtn = (s.running && !s.managed && s.occupant && !s.occupant.protected)
+    ? `<button class="ghost" data-act="takeover" data-name="${esc(s.name)}" data-occ="${esc(s.occupant.label)}" title="Kill what's on the port and start this under Harbor">Take over</button>`
+    : '';
   const runBtns = s.running
     ? `${s.managed
         ? `<button class="danger" data-act="stop" data-name="${esc(s.name)}">Stop</button>
            <button class="ghost" data-act="restart" data-name="${esc(s.name)}">Restart</button>`
-        : `<span class="lock" title="Running, but not started by Harbor">running externally</span>`}
+        : `<span class="lock" title="Running, but not started by Harbor">running externally</span>${takeoverBtn}`}
        ${openBtn}
        <button class="ghost" data-act="logs" data-name="${esc(s.name)}">Logs</button>`
     : `<button class="primary" data-act="start" data-name="${esc(s.name)}">${startLabel}</button>
@@ -713,6 +733,7 @@ document.addEventListener('click', (e) => {
   else if (act === 'start') startService(name);
   else if (act === 'stop') stopService(name);
   else if (act === 'restart') restartService(name);
+  else if (act === 'takeover') confirmTakeover(name, btn.dataset.occ);
   else if (act === 'open') openPort(Number(btn.dataset.port));
   else if (act === 'logs') showLogs(name);
   else if (act === 'autostart') toggleAutostart(name, btn.dataset.enabled === '1');

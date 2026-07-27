@@ -25,6 +25,8 @@ open any dev server from your phone. One Node process, no database, no cloud.
   service goes down (while Harbor is open — it's a browser notification, not a background daemon).
 - **Keep-alive** (opt-in per service): Harbor auto-restarts a service it started if it crashes —
   respecting a deliberate Stop. The launchd-for-your-services complement to needs-restart.
+- **Take over a port**: if a service's port is held by something Harbor didn't start, one click
+  kills that process and starts the service under Harbor (refuses if it's a protected process).
 - **Known services** defined in [`services.json`](services.json): Start ones that are stopped,
   Stop ones that are running, and flip **autostart** per service from the UI. Matched to live
   processes **by port**.

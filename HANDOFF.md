@@ -170,6 +170,14 @@ while. Two stacked iOS behaviours, two fixes:
   doesn't hammer it) and each ping has a 1.5s timeout (a hung server can't stall the dashboard).
   Payload `health` is `true`/`false` only when running AND a path is set, else `null` (UI shows the
   badge only for a real boolean). Pings run in parallel across services.
+- **"Take over" resolves the port-model blind spot.** Because matching is by port, a stopped
+  service whose port is grabbed by an unrelated process reads as *running externally* (Harbor can't
+  tell "my service" from "someone else on my port"). `POST /api/services/:name/takeover` (destructive)
+  kills the occupant(s) on the service's ports (graceful → force), **refuses if any is protected**,
+  waits ~400ms for the port to free, then `startService`. `/api/state` exposes `occupant`
+  (pid/label/protected) for a running-externally service; the UI shows a **Take over** button only
+  when an occupant exists and isn't protected. Verified: blocker on the port → take over → blocker
+  killed, service now Harbor-managed on the port.
 - **keepAlive is an opt-in server-side supervisor** (`superviseKeepAlive`, 5s interval). For a
   service flagged `keepAlive:true` that Harbor started (has a PID file) whose process has since
   died, it clears the stale PID file and restarts it. It only acts when a PID file exists — a

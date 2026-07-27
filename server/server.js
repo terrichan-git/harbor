@@ -179,6 +179,14 @@ app.get('/api/state', auth.requireForRead(), async (req, res) => {
         // share one custom name + description.
         const svcAnnoKey = annotations.keyFor({ cwd: s.cwd, ports: s.ports });
         const svcAnno = svcAnnoKey ? annoStore[svcAnnoKey] : null;
+        // Who holds the port when the service is running but NOT Harbor-managed — the candidate to
+        // "take over" (kill + start under Harbor). Includes whether it's protected (can't be freed).
+        const svcManaged = s.listener ? managedPids.has(s.listener.pid) : false;
+        let occupant = null;
+        if (s.running && !svcManaged && s.listener) {
+          const g = safety.classify(s.listener, { selfPid: SELF_PID, currentUid: CURRENT_UID });
+          occupant = { pid: s.listener.pid, label: s.listener.label || s.listener.name, protected: g.protected, protectedReason: g.reason };
+        }
         return {
           name: s.name,
           ports: s.ports,
@@ -189,7 +197,8 @@ app.get('/api/state', auth.requireForRead(), async (req, res) => {
           running: s.running,
           status,
           pid: s.listener ? s.listener.pid : null,
-          managed: s.listener ? managedPids.has(s.listener.pid) : false,
+          managed: svcManaged,
+          occupant,
           // Resource stats of the running process (null when stopped), for the UI.
           cpu: s.listener ? s.listener.cpu : null,
           rssKb: s.listener ? s.listener.rssKb : null,
@@ -407,6 +416,34 @@ app.post('/api/services/:name/restart', destructive, async (req, res) => {
     if (stop.status === 'needs-force') stop = await processes.stopManaged(record, { force: true });
     const rec = processes.startService(svc);
     res.json({ status: 'restarted', pid: rec.pid });
+  } catch (err) {
+    res.status(500).json({ error: String(err.message || err) });
+  }
+});
+
+// Take over a service's port(s): kill whatever's holding them (graceful → force), then start the
+// service under Harbor. Refuses if a protected process holds the port. This is the "free this port"
+// action for a service that shows as running externally / blocked.
+app.post('/api/services/:name/takeover', destructive, async (req, res) => {
+  const { services } = servicesLib.load();
+  const svc = services.find((s) => s.name === req.params.name);
+  if (!svc) return res.status(404).json({ error: 'unknown service' });
+
+  const listeners = await ports.listListeners();
+  const occupants = listeners.filter((l) => l.pid !== SELF_PID && l.ports.some((p) => svc.ports.includes(p)));
+  for (const occ of occupants) {
+    const guard = safety.classify(occ, { selfPid: SELF_PID, currentUid: CURRENT_UID });
+    if (guard.protected) return res.status(403).json({ error: `port held by a protected process (${occ.name}: ${guard.reason})` });
+  }
+  try {
+    for (const occ of occupants) {
+      let r = await processes.killPid(occ.pid, { force: false });
+      if (r.status === 'needs-force') await processes.killPid(occ.pid, { force: true });
+    }
+    await new Promise((r) => setTimeout(r, 400)); // let the port free before we bind it
+    const rec = processes.startService(svc);
+    everSeenRunning.add(svc.name);
+    res.json({ status: 'took-over', pid: rec.pid, freed: occupants.map((o) => o.pid) });
   } catch (err) {
     res.status(500).json({ error: String(err.message || err) });
   }
