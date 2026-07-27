@@ -1,7 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { validate, match, normalisePorts, setAutostart, addService, removeService } = require('../server/lib/services');
+const { validate, match, normalisePorts, normaliseHealthPath, setAutostart, addService, removeService } = require('../server/lib/services');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
@@ -28,6 +28,26 @@ test('validate normalises good services and reports bad ones without dropping th
   assert.strictEqual(services[1].autostart, true);
   assert.strictEqual(services[0].autostart, false); // defaults to false
   assert.strictEqual(errors.length, 4);
+});
+
+test('normaliseHealthPath adds a leading slash and treats blank/non-string as no check', () => {
+  assert.strictEqual(normaliseHealthPath('/health'), '/health');
+  assert.strictEqual(normaliseHealthPath('health'), '/health');
+  assert.strictEqual(normaliseHealthPath('  /ready '), '/ready');
+  assert.strictEqual(normaliseHealthPath(''), null);
+  assert.strictEqual(normaliseHealthPath(undefined), null);
+  assert.strictEqual(normaliseHealthPath(123), null);
+});
+
+test('validate carries a normalised health path (and null when absent)', () => {
+  const { services } = validate({
+    services: [
+      { name: 'a', cwd: '~/x', command: 'c', port: 3000, health: 'status' },
+      { name: 'b', cwd: '~/y', command: 'c', port: 3001 },
+    ],
+  });
+  assert.strictEqual(services[0].health, '/status');
+  assert.strictEqual(services[1].health, null);
 });
 
 test('validate rejects malformed top-level shapes', () => {

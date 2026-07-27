@@ -71,6 +71,8 @@ function validate(raw) {
       command: s.command,
       ports,
       autostart: s.autostart === true,
+      // optional health-check path; null when not configured
+      health: normaliseHealthPath(s.health),
     });
   });
 
@@ -80,6 +82,14 @@ function validate(raw) {
 function normalisePorts(port) {
   if (port === undefined || port === null) return [];
   return Array.isArray(port) ? port.map(Number) : [Number(port)];
+}
+
+// Optional health-check path → a normalised "/path" string, or null when absent/invalid.
+// Lenient: a non-string or empty value just means "no health check", never a validation error.
+function normaliseHealthPath(health) {
+  if (typeof health !== 'string' || !health.trim()) return null;
+  const p = health.trim();
+  return p.startsWith('/') ? p : `/${p}`;
 }
 
 // Flip a service's autostart flag in services.json, in place. Reads the RAW file (so the $comment
@@ -213,4 +223,4 @@ function match(services, listeners) {
   return { serviceStates, portToService };
 }
 
-module.exports = { validate, load, match, normalisePorts, setAutostart, addService, removeService, ensureExists };
+module.exports = { validate, load, match, normalisePorts, normaliseHealthPath, setAutostart, addService, removeService, ensureExists };

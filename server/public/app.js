@@ -423,6 +423,12 @@ function serviceRowHtml(s) {
       data-act="autostart" data-name="${esc(s.name)}" data-enabled="${s.autostart ? '1' : '0'}"
       title="Start &quot;${esc(s.name)}&quot; automatically when Harbor launches at login">
       <span class="knob"></span><span class="switch-label">autostart</span></button>`;
+  // Health badge — only when a check actually ran (running + health path configured).
+  const healthBadge = s.health === true
+    ? `<span class="kind ok" title="Health check passing (2xx–3xx)">healthy</span>`
+    : s.health === false
+      ? `<span class="kind warn" title="Health path not responding with 2xx–3xx">not responding</span>`
+      : '';
   const startLabel = status === 'down' ? 'Restart' : 'Start';
   const openBtn = s.running ? `<button class="ghost" data-act="open" data-port="${s.ports[0]}" title="Open in browser">Open</button>` : '';
   const runBtns = s.running
@@ -437,7 +443,7 @@ function serviceRowHtml(s) {
   return `<div class="row ${kind}">
     <span class="dot ${kind}"></span>
     <div class="main">
-      <div class="name">${esc(display)} ${idTag} <span class="kind ${kind}">${label}</span> ${ports}</div>
+      <div class="name">${esc(display)} ${idTag} <span class="kind ${kind}">${label}</span> ${healthBadge} ${ports}</div>
       <div class="sub">${esc(s.command)}${s.pid ? ` · pid ${s.pid}` : ''}${statsTail(s)}</div>
       ${links ? `<div class="links">${links}</div>` : ''}
       ${desc}

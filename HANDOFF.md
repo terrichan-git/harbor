@@ -164,6 +164,12 @@ while. Two stacked iOS behaviours, two fixes:
 - **Restart** (`POST /api/services/:name/restart`, managed services only) is stop-then-start:
   graceful TERM → force if it resists → `startService`. Not offered for "running externally"
   services (no PID file, so Harbor can't stop them).
+- **Health checks are optional and cached.** A service's `health` field (a path, normalised to
+  `/…` by `servicesLib.normaliseHealthPath`) makes `/api/state` ping `http://127.0.0.1:<port><path>`
+  via `lib/health.js` — healthy = a 2xx/3xx response. Results cache per name for 5s (so the 4s poll
+  doesn't hammer it) and each ping has a 1.5s timeout (a hung server can't stall the dashboard).
+  Payload `health` is `true`/`false` only when running AND a path is set, else `null` (UI shows the
+  badge only for a real boolean). Pings run in parallel across services.
 - **Live logs are SSE** (`GET /api/services/:name/logs/stream`): send the last ~100 lines, then
   poll the file size every 1s and stream the appended delta (robust across editors/rotation — resets
   `offset` to 0 if the file shrank). `EventSource` can't set headers, so auth rides the durable

@@ -13,6 +13,7 @@ const servicesLib = require('./lib/services');
 const registry = require('./lib/registry');
 const processes = require('./lib/processes');
 const safety = require('./lib/safety');
+const health = require('./lib/health');
 const annotations = require('./lib/annotations');
 const tailscale = require('./lib/tailscale');
 const auth = require('./lib/auth');
@@ -105,6 +106,14 @@ app.get('/api/state', auth.requireForRead(), async (req, res) => {
     const managedPids = new Set(registry.readAll().map((r) => r.pid));
     const annoStore = annotations.load();
 
+    // Health-check running services that declare a path (parallel, cached, short timeout).
+    const healthByName = {};
+    await Promise.all(
+      serviceStates
+        .filter((s) => s.running && s.health)
+        .map(async (s) => { healthByName[s.name] = await health.getHealth(s.name, s.ports[0], s.health); })
+    );
+
     const enriched = listeners.map((l) => {
       const guard = safety.classify(l, { selfPid: SELF_PID, currentUid: CURRENT_UID });
       // A listener is "known" (green) if any of its ports maps to a service; else "rogue" (yellow).
@@ -154,6 +163,8 @@ app.get('/api/state', auth.requireForRead(), async (req, res) => {
           cpu: s.listener ? s.listener.cpu : null,
           rssKb: s.listener ? s.listener.rssKb : null,
           etime: s.listener ? s.listener.etime : null,
+          // Health: true/false when a check ran (running + health path configured), else null.
+          health: (s.running && s.health) ? (healthByName[s.name] ?? null) : null,
           // Harbor promoted as a service (matches its own port) — surfaced in the self section,
           // never in the Known services groups, so it can't circularly "manage itself".
           isSelf: s.ports.includes(PORT),
