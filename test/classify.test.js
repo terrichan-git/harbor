@@ -8,7 +8,7 @@ const ctx = { homeDir: HOME };
 
 // Cases lifted from the ACTUAL corpus on the build machine (not invented).
 test('your dev projects: interpreter running from owned source dir', () => {
-  assert.strictEqual(classify({ command: 'node index.js', cwd: `${HOME}/Claude/Projects/Project Happiness/Jumpr/local` }, ctx).category, 'project');
+  assert.strictEqual(classify({ command: 'node index.js', cwd: `${HOME}/Claude/Projects/IM/Jumpr/local` }, ctx).category, 'project');
   assert.strictEqual(classify({ command: 'node src/server.js', cwd: `${HOME}/Documents/Harbor/port-manager` }, ctx).category, 'project');
   // absolute interpreter path still counts as project when cwd is owned source
   assert.strictEqual(classify({ command: '/usr/local/bin/node server/server.js', cwd: `${HOME}/Claude/Harbor` }, ctx).category, 'project');
